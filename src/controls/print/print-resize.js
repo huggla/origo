@@ -19,8 +19,7 @@ export default function PrintResize(options = {}) {
     titleComponent,
     descriptionComponent,
     createdComponent,
-    closeButton,
-    constrainResolution
+    closeButton
   } = options;
 
   let {
@@ -405,8 +404,6 @@ export default function PrintResize(options = {}) {
   // Alters layer in map, if vector then set scale for feature, if image set DPI parameter for source
   const setLayerScale = function setLayerScale(layer) {
     const source = layer.getSource();
-    const view = map.getView();
-    view.setConstrainResolution(false);
 
     if (isVector(layer)) {
       const styleName = layer.get('styleName');
@@ -470,8 +467,6 @@ export default function PrintResize(options = {}) {
   // "Resets" layer by resetting the style and removing DPI parameter
   const resetLayerScale = function resetLayerScale(layer) {
     const source = layer.getSource();
-    const view = map.getView();
-    view.setConstrainResolution(constrainResolution);
     if (isVector(layer)) {
       const features = source.getFeatures();
       const styleName = layer.get('styleName');
