@@ -109,6 +109,28 @@ function createCloseButton() {
   });
 }
 
+function createMinimizeButton() {
+  return Button({
+    cls: 'closebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
+    icon: '#ic_close_24px',
+    state: 'initial',
+    validStates: ['initial', 'hidden'],
+    ariaLabel: 'Minimera'
+  });
+}
+
+function minimizeInfowindow() {
+  const sidebarcontainer = document.getElementById('sidebarcontainer');
+  const urvalcontainer = document.getElementById('sidebarcontainer-draggable');
+  const urvalListContainer = urvalcontainer.getElementsByClassName('urvalListContainer')[0];
+  const listcontainer = sidebarcontainer.getElementsByClassName('listcontainer')[0];
+  const exportcontainer = sidebarcontainer.getElementsByClassName('exportcontainer')[0];
+  urvalListContainer.style.display = urvalListContainer.style.display === 'none' ? 'block' : 'none';
+  urvalcontainer.style.padding = urvalListContainer.style.display === 'none' ? '0.5em 5em 0.5em 0.5em' : '1em 0em 1em 2em';
+  listcontainer.style.display = listcontainer.style.display === 'none' ? 'block' : 'none';
+  exportcontainer.style.display = exportcontainer.style.display === 'none' ? 'block' : 'none';
+}
+
 function render(viewerId) {
   mainContainer = document.createElement('div');
   setInfowindowStyle();
@@ -126,6 +148,8 @@ function render(viewerId) {
   urvalTextNodeContainer.appendChild(urvalTextNode);
   urvalContainer.appendChild(urvalTextNodeContainer);
   const closeButton = createCloseButton();
+  const minimizeButton = createMinimizeButton();
+  urvalContainer.appendChild(dom.html(minimizeButton.render()));
   urvalContainer.appendChild(dom.html(closeButton.render()));
   urvalContainer.appendChild(urvalListContainer);
   listContainer = document.createElement('div');
@@ -157,6 +181,10 @@ function render(viewerId) {
     viewer.dispatch('toggleClickInteraction', detail);
     selectionManager.clearSelection();
     hideInfowindow();
+  });
+
+  document.getElementById(minimizeButton.getId()).addEventListener('click', () => {
+    minimizeInfowindow();
   });
 
   // Make the DIV element draggagle:
