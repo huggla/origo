@@ -112,6 +112,7 @@ function createCloseButton() {
 function createMinimizeButton() {
   return Button({
     cls: 'closebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
+    icon: '#ic_minimize_24px',
     style: 'right: 30px',
     state: 'initial',
     validStates: ['initial', 'hidden'],
