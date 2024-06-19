@@ -126,7 +126,7 @@ function minimizeInfowindow() {
   const listcontainer = sidebarcontainer.getElementsByClassName('listcontainer')[0];
   const exportcontainer = sidebarcontainer.getElementsByClassName('exportcontainer')[0];
   urvalListContainer.style.display = urvalListContainer.style.display === 'none' ? 'block' : 'none';
-  sidebarcontainer.style.padding = urvalListContainer.style.display === 'none' ? 'fit-content' : null;
+  sidebarcontainer.style.width = urvalListContainer.style.display === 'none' ? 'fit-content' : null;
   urvalcontainer.style.padding = urvalListContainer.style.display === 'none' ? '0.5em 5em 0.5em 0.5em' : '1em 0em 1em 2em';
   listcontainer.style.display = listcontainer.style.display === 'none' ? 'block' : 'none';
   exportcontainer.style.display = exportcontainer.style.display === 'none' ? 'block' : 'none';
