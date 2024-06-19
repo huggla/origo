@@ -111,9 +111,8 @@ function createCloseButton() {
 
 function createMinimizeButton() {
   return Button({
-    cls: 'closebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
-    icon: '_',
-    style: 'right: 30px',
+    cls: 'minimizebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
+    icon: '#ic_close_24px',
     state: 'initial',
     validStates: ['initial', 'hidden'],
     ariaLabel: 'Minimera'
