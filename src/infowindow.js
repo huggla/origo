@@ -125,11 +125,11 @@ function minimizeInfowindow() {
   const urvalListContainer = urvalcontainer.getElementsByClassName('urvalListContainer')[0];
   const listcontainer = sidebarcontainer.getElementsByClassName('listcontainer')[0];
   const exportcontainer = sidebarcontainer.getElementsByClassName('exportcontainer')[0];
-  urvalListContainer.style.display = urvalListContainer.style.display === 'none' ? 'block' : 'none';
+  urvalListContainer.style.display = urvalListContainer.style.display === 'none' ? null : 'none';
   sidebarcontainer.style.width = urvalListContainer.style.display === 'none' ? 'fit-content' : null;
-  urvalcontainer.style.padding = urvalListContainer.style.display === 'none' ? '0.5em 5em 0.5em 0.5em' : '1em 0em 1em 2em';
-  listcontainer.style.display = listcontainer.style.display === 'none' ? 'block' : 'none';
-  exportcontainer.style.display = exportcontainer.style.display === 'none' ? 'block' : 'none';
+  urvalcontainer.style.padding = urvalListContainer.style.display === 'none' ? '9px 5em 2px 0.5em' : null;
+  listcontainer.style.display = listcontainer.style.display === 'none' ? null : 'none';
+  exportcontainer.style.display = exportcontainer.style.display === 'none' ? null : 'none';
 }
 
 function render(viewerId) {
