@@ -317,7 +317,7 @@ const Search = function Search(options = {}) {
 
     awesomplete = new Awesomplete('.o-search-field', {
       minChars: minLength,
-      autoFirst: false,
+      autoFirst: true,
       sort: false,
       maxItems: limit,
       item: renderList,
