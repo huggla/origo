@@ -128,8 +128,7 @@ function minimizeInfowindow() {
     listContainer.style.display = null;
     exportContainer.style.display = null;
     minimizeButtonUse.setAttribute('xlink:href', '#ic_close_fullscreen_24px');
-  }
-  else {
+  } else {
     urvalListContainer.style.display = 'none';
     mainContainer.style.width = 'fit-content';
     urvalContainer.style.padding = '9px 5em 2px 0.5em';
