@@ -112,7 +112,7 @@ function createCloseButton() {
 function createMinimizeButton() {
   return Button({
     cls: 'minimizebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
-    icon: '#ic_minimize_24px',
+    icon: '#ic_close_fullscreen_24px',
     state: 'initial',
     validStates: ['initial', 'hidden'],
     ariaLabel: 'Minimera'
@@ -120,16 +120,25 @@ function createMinimizeButton() {
 }
 
 function minimizeInfowindow() {
-  const sidebarcontainer = document.getElementById('sidebarcontainer');
-  const urvalcontainer = document.getElementById('sidebarcontainer-draggable');
-  const urvalListContainer = urvalcontainer.getElementsByClassName('urvalListContainer')[0];
-  const listcontainer = sidebarcontainer.getElementsByClassName('listcontainer')[0];
-  const exportcontainer = sidebarcontainer.getElementsByClassName('exportcontainer')[0];
-  urvalListContainer.style.display = urvalListContainer.style.display === 'none' ? null : 'none';
-  sidebarcontainer.style.width = urvalListContainer.style.display === 'none' ? 'fit-content' : null;
-  urvalcontainer.style.padding = urvalListContainer.style.display === 'none' ? '9px 5em 2px 0.5em' : null;
-  listcontainer.style.display = listcontainer.style.display === 'none' ? null : 'none';
-  exportcontainer.style.display = exportcontainer.style.display === 'none' ? null : 'none';
+  const urvalTextnodeContainer = urvalContainer.getElementsByClassName('urval-textnode-container')[0];
+  const minimizeButtonUse = urvalContainer.querySelector('[aria-label="Minimera"]').querySelector('use');
+  if (urvalListContainer.style.display === 'none') {
+    urvalListContainer.style.display = null;
+    mainContainer.style.width = null;
+    urvalContainer.style.padding = null;
+    urvalTextnodeContainer.style.marginRight = null;
+    listContainer.style.display = null;
+    exportContainer.style.display = null;
+    minimizeButtonUse.setAttribute('xlink:href', '#ic_close_fullscreen_24px');
+  } else {
+    urvalListContainer.style.display = 'none';
+    mainContainer.style.width = 'fit-content';
+    urvalContainer.style.padding = '9px 5em 2px 0.5em';
+    urvalTextnodeContainer.style.marginRight = '0.5em';
+    listContainer.style.display = 'none';
+    exportContainer.style.display = 'none';
+    minimizeButtonUse.setAttribute('xlink:href', '#ic_open_in_full_24px');
+  }
 }
 
 function render(viewerId) {
