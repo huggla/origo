@@ -170,14 +170,16 @@ async function setIcon(src, cmp, styleRules, layer, viewer, clickable) {
     const searchParams = new URLSearchParams(paramsString);
     const response = await fetch(src.icon.json);
     const jsonData = await response.json();
-    jsonData.Legend[0].rules.forEach(row => {
+    jsonData.nodes[0].symbols.forEach(row => {
       searchParams.set('FORMAT', 'image/png');
-      searchParams.set('RULE', row.name);
+      searchParams.set('RULE', row.title);
+      searchParams.set('WIDTH', '30');
+      searchParams.set('HEIGHT', '30');  
       const imgUrl = decodeURIComponent(searchParams.toString());
-      if (typeof row.filter !== 'undefined') {
+      if (typeof row.rule !== 'undefined') {
         style[0].thematic.push({
           image: { src: imgUrl },
-          filter: row.filter,
+          filter: row.rule,
           name: row.name,
           label: row.title || row.name,
           visible: row.visible !== false
