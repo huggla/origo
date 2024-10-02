@@ -152,9 +152,9 @@ function updateLayer(layer, viewer) {
       if (filterStr === '') {
         filterStr = "IN ('')";
       }
-      layer.getSource().updateParams({ CQL_FILTER: filterStr });
+      layer.getSource().updateParams({ FILTER: layer.get('name') + ':' + filterStr });
     } else {
-      layer.getSource().updateParams({ CQL_FILTER: null });
+      layer.getSource().updateParams({ FILTER: null });
     }
   }
 }
