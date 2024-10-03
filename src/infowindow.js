@@ -127,10 +127,10 @@ function resetInfowindow() {
   listContainer.classList.remove('hidden');
   exportContainer.classList.remove('hidden');
   groupFooterContainer.classList.remove('hidden');
+  mainContainer.classList.remove('fit-width');
+  urvalContainer.classList.remove('minimizedurvalelement');
   minimizeButton.setIcon(initialMinimizeButtonIcon);
-  minimizeButton.setState('initial');
-  mainContainer.style.width = null;
-  urvalContainer.style.padding = null;
+  minimizeButton.setState('initial');  
 }
 
 function minimizeInfowindow() {
@@ -138,10 +138,10 @@ function minimizeInfowindow() {
   listContainer.classList.add('hidden');
   exportContainer.classList.add('hidden');
   groupFooterContainer.classList.add('hidden');
+  mainContainer.classList.add('fit-width');
+  urvalContainer.classList.add('minimizedurvalelement');
   minimizeButton.setIcon(hiddenMinimizeButtonIcon);
-  minimizeButton.setState('hidden');
-  mainContainer.style.width = 'fit-content';
-  urvalContainer.style.padding = '0.5rem calc(38px + 2rem) 0 0.5rem';
+  minimizeButton.setState('hidden');  
 }
 
 function toggleInfowindow() {
