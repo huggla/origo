@@ -201,7 +201,7 @@ function render(viewerId) {
     viewer.dispatch('toggleClickInteraction', detail);
     selectionManager.clearSelection();
     hideInfowindow();
-    if (urvalListContainer.style.display === 'none') {
+    if (urvalListContainer.classList.contains('hidden')) {
       resetInfowindow();
     }
   });
