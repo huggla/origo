@@ -112,7 +112,7 @@ function createCloseButton() {
 function createMinimizeButton() {
   return Button({
     cls: 'minimizebutton-svg-container small round small icon-smaller grey-lightest margin-top-small margin-right-small z-index-ontop-low ',
-    icon: '#ic_close_fullscreen_24px',
+    icon: initialMinimizeButtonIcon,
     state: 'initial',
     validStates: ['initial', 'hidden'],
     ariaLabel: 'Minimera'
@@ -120,23 +120,25 @@ function createMinimizeButton() {
 }
 
 function resetInfowindow() {
-  const minimizeButtonUse = urvalContainer.querySelector('[aria-label="Minimera"]').querySelector('use');
-  urvalListContainer.style.display = null;
+  urvalListContainer.classList.remove('hidden');
+  listContainer.classList.remove('hidden');
+  exportContainer.classList.remove('hidden');
+  groupFooterContainer.classList.remove('hidden');
+  minimizeButton.setIcon(initialMinimizeButtonIcon);
+  minimizeButton.setState('initial');
   mainContainer.style.width = null;
   urvalContainer.style.padding = null;
-  listContainer.style.display = null;
-  exportContainer.style.display = null;
-  minimizeButtonUse.setAttribute('xlink:href', '#ic_close_fullscreen_24px');
 }
 
 function minimizeInfowindow() {
-  const minimizeButtonUse = urvalContainer.querySelector('[aria-label="Minimera"]').querySelector('use');
-  urvalListContainer.style.display = 'none';
+  urvalListContainer.classList.add('hidden');
+  listContainer.classList.add('hidden');
+  exportContainer.classList.add('hidden');
+  groupFooterContainer.classList.add('hidden');
+  minimizeButton.setIcon(hiddenMinimizeButtonIcon);
+  minimizeButton.setState('hidden');
   mainContainer.style.width = 'fit-content';
   urvalContainer.style.padding = '0.5rem calc(38px + 2rem) 0 0.5rem';
-  listContainer.style.display = 'none';
-  exportContainer.style.display = 'none';
-  minimizeButtonUse.setAttribute('xlink:href', '#ic_open_in_full_24px');
 }
 
 function toggleInfowindow() {
@@ -164,6 +166,8 @@ function render(viewerId) {
   urvalTextNodeContainer.appendChild(urvalTextNode);
   urvalContainer.appendChild(urvalTextNodeContainer);
   const closeButton = createCloseButton();
+  const initialMinimizeButtonIcon = '#ic_close_fullscreen_24px';
+  const hiddenMinimizeButtonIcon = '#ic_open_in_full_24px';
   const minimizeButton = createMinimizeButton();
   urvalContainer.appendChild(dom.html(minimizeButton.render()));
   urvalContainer.appendChild(dom.html(closeButton.render()));
