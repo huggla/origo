@@ -20,6 +20,7 @@ let viewer;
 let infowindowOptions;
 const initialMinimizeButtonIcon = '#ic_close_fullscreen_24px';
 const hiddenMinimizeButtonIcon = '#ic_open_in_full_24px';
+const minimizeButton = createMinimizeButton();
 
 function createSvgElement(id, className) {
   const svgContainer = document.createElement('div');
@@ -168,7 +169,6 @@ function render(viewerId) {
   urvalTextNodeContainer.appendChild(urvalTextNode);
   urvalContainer.appendChild(urvalTextNodeContainer);
   const closeButton = createCloseButton();
-  const minimizeButton = createMinimizeButton();
   urvalContainer.appendChild(dom.html(minimizeButton.render()));
   urvalContainer.appendChild(dom.html(closeButton.render()));
   urvalContainer.appendChild(urvalListContainer);
