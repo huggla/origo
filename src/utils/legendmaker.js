@@ -150,8 +150,9 @@ function updateLayer(layer, viewer) {
         }
       });
       if (filterStr === '') {
-        filterStr = "IN ('')";
+        filterStr = "IN ( '' )";
       }
+      filterStr = str.replace(/\(([^ ])/g, "( $1").replace(/([^ ])\)/g, "$1 )");
       layer.getSource().updateParams({ FILTER: layer.get('name') + ':' + filterStr });
     } else {
       layer.getSource().updateParams({ FILTER: null });
