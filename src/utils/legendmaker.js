@@ -145,6 +145,7 @@ function updateLayer(layer, viewer) {
       let filterStr = '';
       thematicArr.forEach(theme => {
         if (theme.visible) {
+          filterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
           filterStr += filterStr === '' ? '' : ' OR ';
           filterStr += theme.filter;
         }
@@ -152,8 +153,6 @@ function updateLayer(layer, viewer) {
       if (filterStr === '') {
         filterStr = "NULL";
       }
-      filterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
-      filterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
       layer.getSource().updateParams({ FILTER: layer.get('name') + ':' + filterStr });
     } else {
       layer.getSource().updateParams({ FILTER: null });
