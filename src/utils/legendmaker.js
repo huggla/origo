@@ -145,13 +145,18 @@ function updateLayer(layer, viewer) {
       let filterStr = '';
       thematicArr.forEach(theme => {
         if (theme.visible) {
-          filterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
           filterStr += filterStr === '' ? '' : ' OR ';
           filterStr += theme.filter;
         }
       });
       if (filterStr === '') {
         filterStr = "NULL";
+      } else {
+        let newFilterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
+        while (newFilterStr != filterStr) {
+          filterStr = newFilterStr;
+          newFilterStr = filterStr.replace(/([(=])([^ ])/g, "$1 $2").replace(/([^ ])([)<>!])/g, "$1 $2").replace(/([^ <>!])=/g, "$1 =").replace(/([<>])([^ =])/g, "$1 $2");
+        }
       }
       layer.getSource().updateParams({ FILTER: layer.get('name') + ':' + filterStr });
     } else {
