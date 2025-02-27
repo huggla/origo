@@ -51,9 +51,7 @@ const PrintComponent = function PrintComponent(options = {}) {
     mapInteractionsActive,
     supressResolutionsRecalculation,
     suppressNewDPIMethod,
-    settingsExpanded,
-    localize,
-    localeId
+    settingsExpanded
   } = options;
 
   let {
@@ -228,7 +226,7 @@ const PrintComponent = function PrintComponent(options = {}) {
   };
 
   const created = function created() {
-    return showCreated ? `${createdPrefix}${today.toLocaleDateString(localeId)} ${today.toLocaleTimeString(localeId)}` : '';
+    return showCreated ? `${createdPrefix}${today.toLocaleDateString()} ${today.toLocaleTimeString()}` : '';
   };
 
   const titleComponent = Component({
@@ -273,8 +271,7 @@ const PrintComponent = function PrintComponent(options = {}) {
     titleComponent,
     descriptionComponent,
     createdComponent,
-    closeButton,
-    constrainResolution: view.getConstrainResolution()
+    closeButton
   });
 
   const setScale = function setScale(scale) {
@@ -336,14 +333,11 @@ const PrintComponent = function PrintComponent(options = {}) {
     showPrintLegend,
     rotation,
     rotationStep,
-    viewerResolutions: originalResolutions,
-    localize
+    viewerResolutions: originalResolutions
   });
-  const printInteractionToggle = PrintInteractionToggle({ map, target, mapInteractionsActive, pageSettings: viewer.getViewerOptions().pageSettings, localize });
+  const printInteractionToggle = PrintInteractionToggle({ map, target, mapInteractionsActive, pageSettings: viewer.getViewerOptions().pageSettings });
 
-  const printToolbar = PrintToolbar({
-    localize
-  });
+  const printToolbar = PrintToolbar();
 
   let mapLoadListenRefs;
 
