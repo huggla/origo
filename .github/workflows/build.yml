@@ -1,4 +1,4 @@
-name: Bygg och packa Swiper-plugin
+name: Build Origo
 
 on:
   workflow_dispatch:
