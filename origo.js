@@ -117,14 +117,12 @@ const initViewer = () => {
       viewer = Viewer(target, viewerOptions);
 
       viewer.on('loaded', () => {
-        const realViewer = viewer.getViewer(); // RIKTIGA VIEWERN
-
         const urlParams = new URLSearchParams(window.location.search);
         const mapStateId = urlParams.get('mapStateId');
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(state => {
-            if (state && realViewer && typeof realViewer.setState === 'function') {
-              realViewer.setState(state);
+            if (state && viewer && typeof viewer.setState === 'function') {
+              viewer.setState(state);
             }
           }).catch(err => {
             console.error('Restore failed:', err);
