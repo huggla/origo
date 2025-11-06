@@ -121,8 +121,34 @@ const initViewer = () => {
         const mapStateId = urlParams.get('mapStateId');
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(state => {
-            if (state && viewer && typeof viewer.setState === 'function') {
-              viewer.setState(state);
+            if (state) {
+              const view = viewer.getMap().getView();
+
+              // Manuell återställning: center och zoom
+              if (state.center) {
+                view.setCenter(state.center);
+              }
+              if (state.zoom !== undefined) {
+                view.setZoom(state.zoom);
+              }
+
+              // Lager (visible)
+              if (state.layers) {
+                state.layers.forEach(layerState => {
+                  const layer = viewer.getLayer(layerState.name);
+                  if (layer) {
+                    layer.setVisible(layerState.visible);
+                  }
+                });
+              }
+
+              // Lägg till fler om state har dem (t.ex. legend, controls)
+              if (state.legend) {
+                // Exempel: om legend finns i state
+                viewer.getControlByName('legend').setVisible(state.legend.visible);
+              }
+
+              console.log('MapState återställt manuellt!');
             }
           }).catch(err => {
             console.error('Restore failed:', err);
