@@ -130,25 +130,31 @@ const Origo = function Origo(configPath, options = {}) {
   api.extensions = () => origoExtensions;
 
   /** Helper that initialises a new viewer  */
-  const initViewer = () => {
-    const defaultConfig = Object.assign({}, origoConfig, options);
-    loadResources(configPath, defaultConfig)
-      .then(async (data) => {
-        const viewerOptions = data.options;
-        viewerOptions.controls = await initControls(viewerOptions.controls);
-        viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
-        return viewerOptions;
-      })
-      .then((viewerOptions) => {
-        const target = viewerOptions.target;
-        viewer = Viewer(target, viewerOptions);
-        viewer.on('loaded', () => {
-          // Inform listeners that there is a new Viewer in town
-          origo.dispatch('load', viewer);
+const initViewer = () => {
+  const defaultConfig = Object.assign({}, origoConfig, options);
+  loadResources(configPath, defaultConfig)
+    .then(async (data) => {
+      const viewerOptions = data.options;
+      viewerOptions.controls = await initControls(viewerOptions.controls);
+      viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
+      return viewerOptions;
+    })
+    .then((viewerOptions) => {
+      const target = viewerOptions.target;
+      viewer = Viewer(target, viewerOptions);
+      const urlParams = new URLSearchParams(window.location.search);
+      const mapStateId = urlParams.get('mapStateId');
+      if (mapStateId) {
+        permalink.readStateFromServer(mapStateId).then(state => {
+          if (state) viewer.setState(state);
         });
-      })
-      .catch(error => console.error(error));
-  };
+      }
+      viewer.on('loaded', () => {
+        origo.dispatch('load', viewer);
+      });
+    })
+    .catch(error => console.error(error));
+};
   // Add a listener to handle a new sharemap when using hash format.
   window.addEventListener('hashchange', (ev) => {
     const newParams = permalink.parsePermalink(ev.newURL);
