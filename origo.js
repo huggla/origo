@@ -119,40 +119,18 @@ const initViewer = () => {
       viewer.on('loaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const mapStateId = urlParams.get('mapStateId');
+
         if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(state => {
-            if (state) {
-              const view = viewer.getMap().getView();
-
-              // Manuell återställning: center och zoom
-              if (state.center) {
-                view.setCenter(state.center);
+          permalink.readStateFromServer(mapStateId).then(rawState => {
+            if (rawState) {
+              // Simulera en permalink-URL för att använda befintlig parser
+              const fakeUrl = `?mapStateId=${mapStateId}`;
+              const parsedState = permalink.parsePermalink(fakeUrl);
+              if (parsedState) {
+                viewer.dispatch('changestate', parsedState);
               }
-              if (state.zoom !== undefined) {
-                view.setZoom(state.zoom);
-              }
-
-              // Lager (visible)
-              if (state.layers) {
-                state.layers.forEach(layerState => {
-                  const layer = viewer.getLayer(layerState.name);
-                  if (layer) {
-                    layer.setVisible(layerState.visible);
-                  }
-                });
-              }
-
-              // Lägg till fler om state har dem (t.ex. legend, controls)
-              if (state.legend) {
-                // Exempel: om legend finns i state
-                viewer.getControlByName('legend').setVisible(state.legend.visible);
-              }
-
-              console.log('MapState återställt manuellt!');
             }
-          }).catch(err => {
-            console.error('Restore failed:', err);
-          });
+          }).catch(err => console.error('Restore failed:', err));
         }
 
         origo.dispatch('load', viewer);
