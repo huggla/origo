@@ -122,6 +122,7 @@ const initViewer = () => {
 
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(state => {
+            console.log(state);
             if (state) {
               // Samma interna logik som vid extern config
               viewer.dispatch('restore:state', state);
