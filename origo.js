@@ -121,16 +121,12 @@ const initViewer = () => {
         const mapStateId = urlParams.get('mapStateId');
 
         if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(rawState => {
-            if (rawState) {
-              // Simulera en permalink-URL för att använda befintlig parser
-              const fakeUrl = `?mapStateId=${mapStateId}`;
-              const parsedState = permalink.parsePermalink(fakeUrl);
-              if (parsedState) {
-                viewer.dispatch('changestate', parsedState);
-              }
+          permalink.readStateFromServer(mapStateId).then(state => {
+            if (state) {
+              // Samma interna logik som vid extern config
+              viewer.dispatch('restore:state', state);
             }
-          }).catch(err => console.error('Restore failed:', err));
+          });
         }
 
         origo.dispatch('load', viewer);
