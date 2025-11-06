@@ -116,16 +116,21 @@ const initViewer = () => {
       const target = viewerOptions.target;
       viewer = Viewer(target, viewerOptions);
 
-      // NY FIX: Återställ mapStateId direkt efter viewer skapad
-      const urlParams = new URLSearchParams(window.location.search);
-      const mapStateId = urlParams.get('mapStateId');
-      if (mapStateId) {
-        permalink.readStateFromServer(mapStateId).then(state => {
-          if (state) viewer.setState(state);
-        });
-      }
-
+      // FIX: Vänta på 'loaded' innan vi läser mapStateId
       viewer.on('loaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const mapStateId = urlParams.get('mapStateId');
+        if (mapStateId) {
+          permalink.readStateFromServer(mapStateId).then(state => {
+            if (state) {
+              viewer.setState(state);
+            }
+          }).catch(err => {
+            console.error('Restore failed:', err);
+          });
+        }
+
+        // Flytta dispatch hit
         origo.dispatch('load', viewer);
       });
     })
