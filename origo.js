@@ -122,11 +122,12 @@ const initViewer = () => {
 
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(state => {
-            console.log("statedebug: " + state);
             if (state) {
-              // Samma interna logik som vid extern config
-              viewer.dispatch('restore:state', state);
+              // KORREKT EVENT – exakt samma som Origo använder internt
+              viewer.dispatch('changestate', state);
             }
+          }).catch(err => {
+            console.error('Restore failed:', err);
           });
         }
 
