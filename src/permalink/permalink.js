@@ -3,6 +3,7 @@ import permalinkStore from './permalinkstore';
 import urlparser from '../utils/urlparser';
 
 let saveOnServerServiceEndPoint = '';
+let viewerInstance = null; // NY RAD: Håller referens till viewer-objektet
 
 export default (() => ({
   getSaveLayers: function getSaveLayers(layers) {
@@ -75,8 +76,22 @@ export default (() => ({
   },
   setSaveOnServerServiceEndpoint: function setSaveOnServerServiceEndPoint(url) {
     saveOnServerServiceEndPoint = url;
+
+    // NY LOGIK: Om mapStateId finns i URL och viewer är satt → återställ direkt
+    const params = new URLSearchParams(window.location.search);
+    const mapStateId = params.get('mapStateId');
+    if (mapStateId && viewerInstance) {
+      this.readStateFromServer(mapStateId).then(state => {
+        if (state) {
+          viewerInstance.setState(state);
+        }
+      }).catch(err => {
+        console.error('Auto-restore misslyckades:', err);
+      });
+    }
   },
   saveStateToServer: function saveStateToServer(viewer) {
+    viewerInstance = viewer; // NY RAD: Spara viewer för senare användning
     return fetch(saveOnServerServiceEndPoint, {
       method: 'POST',
       body: JSON.stringify(permalinkStore.getState(viewer, true)),
