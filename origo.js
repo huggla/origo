@@ -121,14 +121,17 @@ const initViewer = () => {
         const mapStateId = urlParams.get('mapStateId');
 
         if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(state => {
-            if (state) {
-              // KORREKT EVENT – exakt samma som Origo använder internt
-              viewer.dispatch('changestate', state);
+          permalink.readStateFromServer(mapStateId).then(rawState => {
+            if (rawState) {
+              const hashStr = urlparser.formatUrl(rawState);
+              const hashUrl = `#${hashStr}`;
+              const parsedState = permalink.parsePermalink(hashUrl);
+              if (parsedState) {
+                viewer.dispatch('changestate', parsedState);
+                console.log('MapState återställt via hash → changestate');
+              }
             }
-          }).catch(err => {
-            console.error('Restore failed:', err);
-          });
+          }).catch(err => console.error('Restore failed:', err));
         }
 
         origo.dispatch('load', viewer);
