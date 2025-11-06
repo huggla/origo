@@ -123,12 +123,12 @@ const initViewer = () => {
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(rawState => {
             if (rawState) {
-              const hashStr = urlparser.formatUrl(rawState);
+              // ANVÄND Utils.urlparser
+              const hashStr = Utils.urlparser.formatUrl(rawState);
               const hashUrl = `#${hashStr}`;
               const parsedState = permalink.parsePermalink(hashUrl);
               if (parsedState) {
                 viewer.dispatch('changestate', parsedState);
-                console.log('MapState återställt via hash → changestate');
               }
             }
           }).catch(err => console.error('Restore failed:', err));
