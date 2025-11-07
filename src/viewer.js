@@ -63,7 +63,10 @@ const Viewer = function Viewer(targetOption, options = {}) {
   } = options;
 
   const viewerOptions = Object.assign({}, options);
-  const target = targetOption;
+  const target = targetOption || options.target;
+  if (!target || typeof target !== 'string') {
+    throw new Error(`Viewer: Invalid target: ${target}. Expected CSS selector.`);
+  }
   const center = urlParams.center || centerOption;
   const zoom = urlParams.zoom || zoomOption;
   const groups = flattenGroups(groupOptions);
