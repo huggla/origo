@@ -72,11 +72,10 @@ const Origo = function Origo(config, options = {}) {
     return null;
   }
 
-  // --- SÄKRA initControls – hanterar undefined/null ---
   const initControls = (controlDefs = []) => {
     const controls = [];
-    controlDefs.forEach((def) => {
-      if (def && 'name' in def) {
+    (Array.isArray(controlDefs) ? controlDefs : []).forEach(def => {
+      if (def && typeof def === 'object' && 'name' in def) {
         const controlName = titleCase(def.name);
         const controlOptions = def.options || {};
         if (controlName in origoControls) {
@@ -89,11 +88,10 @@ const Origo = function Origo(config, options = {}) {
     return controls;
   };
 
-  // --- SÄKRA initExtensions – hanterar undefined/null ---
   const initExtensions = (extensionDefs = []) => {
     const extensions = [];
-    extensionDefs.forEach((def) => {
-      if (def && 'name' in def) {
+    (Array.isArray(extensionDefs) ? extensionDefs : []).forEach(def => {
+      if (def && typeof def === 'object' && 'name' in def) {
         const extensionName = titleCase(def.name);
         const extensionOptions = def.options || {};
         if (extensionName in origoExtensions) {
@@ -118,14 +116,19 @@ const Origo = function Origo(config, options = {}) {
       : loadResources(config, defaultConfig);
 
     configPromise
-      .then((data) => {
-        const viewerOptions = data.options || {};
+      .then(data => {
+        // SÄKRA: data kan vara null/undefined
+        const safeData = data || {};
+        const viewerOptions = safeData.options || {};
+
+        // SÄKRA: target måste finnas
         viewerOptions.target = targetSelector;
 
-        // SÄKRA: controls och extensions kan vara undefined
+        // SÄKRA: controls och extensions
         viewerOptions.controls = initControls(viewerOptions.controls);
         viewerOptions.extensions = initExtensions(viewerOptions.extensions);
 
+        // SKAPA VIEWER – nu är viewerOptions garanterat objekt
         viewer = Viewer(targetSelector, viewerOptions);
 
         viewer.on('loaded', () => {
