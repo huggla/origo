@@ -31,7 +31,6 @@ import * as Loader from './src/loading';
 import Spinner from './src/utils/spinner';
 
 const Origo = function Origo(config, options = {}) {
-  /** Reference to the returned Component */
   let origo;
   let viewer;
   const origoConfig = {
@@ -59,9 +58,17 @@ const Origo = function Origo(config, options = {}) {
   };
 
   const isSupported = supports();
-  const el = options.target || origoConfig.target;
+  const targetSelector = options.target || origoConfig.target;
+  const targetEl = document.querySelector(targetSelector);
+
   if (!isSupported) {
-    renderError('browser', el);
+    renderError('browser', targetSelector);
+    return null;
+  }
+
+  if (!targetEl) {
+    console.error(`Target element not found: ${targetSelector}`);
+    renderError('target', targetSelector);
     return null;
   }
 
@@ -102,39 +109,43 @@ const Origo = function Origo(config, options = {}) {
   api.controls = () => origoControls;
   api.extensions = () => origoExtensions;
 
-  /** Helper that initialises a new viewer */
   const initViewer = () => {
     const defaultConfig = Object.assign({}, origoConfig, options);
 
-    // NY LOGIK: config kan vara objekt (inline) eller sträng (extern)
+    // HANTERA INLINE ELLER EXTERN CONFIG
     const configPromise = typeof config === 'object' && config !== null
-      ? Promise.resolve({ options: config })  // Inline: wrap in Promise
-      : loadResources(config, defaultConfig); // Extern: ladda från fil
+      ? Promise.resolve({ options: config })
+      : loadResources(config, defaultConfig);
 
     configPromise
       .then((data) => {
         const viewerOptions = data.options;
+        viewerOptions.target = targetSelector;
         viewerOptions.controls = initControls(viewerOptions.controls);
         viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
-        const target = viewerOptions.target;
-        viewer = Viewer(target, viewerOptions);
+
+        viewer = Viewer(targetSelector, viewerOptions);
 
         viewer.on('loaded', () => {
-          // HANTERA ?mapStateId= – samma som extern config
+          // HANTERA ?mapStateId= – samma som extern JSON
           const urlParams = new URLSearchParams(window.location.search);
           const mapStateId = urlParams.get('mapStateId');
 
           if (mapStateId) {
             permalink.readStateFromServer(mapStateId).then(rawState => {
               if (rawState) {
-                // BYGG HASH – samma som permalink.getHash()
-                const hashStr = Object.keys(rawState)
-                  .map(key => `${key}=${rawState[key]}`)
-                  .join('&');
-                const hashUrl = `#${hashStr}`;
-                const parsedState = permalink.parsePermalink(hashUrl);
-                if (parsedState) {
-                  viewer.dispatch('changestate', parsedState);
+                try {
+                  // Bygg hash manuellt – undvik formatUrl-buggar
+                  const hashStr = Object.keys(rawState)
+                    .map(key => `${key}=${rawState[key]}`)
+                    .join('&');
+                  const hashUrl = `#${hashStr}`;
+                  const parsedState = permalink.parsePermalink(hashUrl);
+                  if (parsedState) {
+                    viewer.dispatch('changestate', parsedState);
+                  }
+                } catch (err) {
+                  console.error('Restore failed:', err);
                 }
               }
             }).catch(err => console.error('Restore failed:', err));
@@ -143,10 +154,13 @@ const Origo = function Origo(config, options = {}) {
           origo.dispatch('load', viewer);
         });
       })
-      .catch(error => console.error('Failed to load config:', error));
+      .catch(error => {
+        console.error('Failed to load config:', error);
+        renderError('config', targetSelector);
+      });
   };
 
-  // HANTERA HASHCHANGE (oförändrad)
+  // HANTERA HASHCHANGE
   window.addEventListener('hashchange', (ev) => {
     const newParams = permalink.parsePermalink(ev.newURL);
     if (newParams && newParams.map) {
