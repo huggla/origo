@@ -457,21 +457,23 @@ const viewer = this;
 return Component({
   onInit() {
     console.log('VIEWER: onInit started');
-    viewer.render();
+
+    // this ÄR Viewer-instansen här!
+    this.render();
 
     proj.registerProjections(proj4Defs);
     setProjection(proj.Projection({ projectionCode, projectionExtent }));
     tileGrid = maputils.tileGrid(tileGridSettings);
-    stylewindow = Stylewindow({ palette, viewer });
+    stylewindow = Stylewindow({ palette, viewer: this });
 
-    setMap(Map(Object.assign(options, { projection, center, zoom, target: viewer.getId() })));
+    setMap(Map(Object.assign(options, { projection, center, zoom, target: this.getId() })));
 
     mergeSavedLayerProps(layerOptions, urlParams.layers)
       .then(layerProps => {
         console.log('DEBUG: Layers loaded:', layerProps);
-        viewer.addLayers(layerProps);  // ← NU ÄR DET RÄTT!
+        this.addLayers(layerProps);
 
-        mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: viewer.getId() });
+        mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: this.getId() });
 
         if (urlParams.pin) featureinfoOptions.savedPin = urlParams.pin;
         else if (urlParams.selection) {
@@ -480,17 +482,17 @@ return Component({
           });
         }
 
-        featureinfoOptions.viewer = viewer;
+        featureinfoOptions.viewer = this;
         selectionmanager = Selectionmanager(featureinfoOptions);
         featureinfo = Featureinfo(featureinfoOptions);
-        viewer.addComponent(selectionmanager);
-        viewer.addComponent(featureinfo);
-        viewer.addComponent(centerMarker);
-        viewer.addControls();
+        this.addComponent(selectionmanager);
+        this.addComponent(featureinfo);
+        this.addComponent(centerMarker);
+        this.addControls();
 
         if (urlParams.feature) {
           const [layerName, idPart] = urlParams.feature.split('.');
-          const layer = viewer.getLayer(layerName);
+          const layer = this.getLayer(layerName);
           if (layer && layer.get('type') !== 'GROUP') {
             const source = layer.getSource().source || layer.getSource();
             let id = idPart;
@@ -513,16 +515,16 @@ return Component({
         }
 
         console.log('VIEWER: Dispatching loaded');
-        viewer.dispatch('loaded');
+        this.dispatch('loaded');
       })
       .catch(err => {
         console.error('Layer load error:', err);
-        viewer.dispatch('loaded'); // Fortsätt ändå
+        this.dispatch('loaded');
       });
   },
 
   render() {
-    const html = `<div id="${viewer.getId()}" class="${cls}">
+    const html = `<div id="${this.getId()}" class="${cls}">
                     <div class="transparent flex column height-full width-full absolute top-left no-margin z-index-low">
                       ${main.render()}${footer.render()}
                     </div>
@@ -531,17 +533,70 @@ return Component({
     const el = document.querySelector(target);
     if (!el) throw new Error(`Target not found: ${target}`);
     el.innerHTML = html;
-    viewer.dispatch('render');
+    this.dispatch('render');
   },
 
-  addControl, addControls, addGroup, addGroups, addLayer, addLayers, addSource, addStyle, addMarker,
-  getBreakPoints, getCenter, getClusterOptions, getConsoleId, getControlByName, getExtent, getFeatureinfo,
-  getFooter, getInitialZoom, getTileGridSettings, getGroup, getGroups, getMain, getMapSource, getMapUtils,
-  getUtils, getQueryableLayers, getGroupLayers, getResolutions, getSearchableLayers, getSize, getLayer,
-  getLayerStylePicker, getLayers, getLayersByProperty, getMap, getMapName, getMapUrl, getProjection,
-  getProjectionCode, getSource, getStyle, getStyles, getTarget, getTileGrid, getTileSize, getUrl,
-  getUrlParams, getViewerOptions, removeGroup, removeLayer, removeOverlays, removeMarkers, setStyle,
-  zoomToExtent, getSelectionManager, getStylewindow, getEmbedded, permalink, generateUUID, centerMarker
+  // Alla metoder – använd this direkt
+  addControl,
+  addControls,
+  addGroup,
+  addGroups,
+  addLayer,
+  addLayers,
+  addSource,
+  addStyle,
+  addMarker,
+  getBreakPoints,
+  getCenter,
+  getClusterOptions,
+  getConsoleId,
+  getControlByName,
+  getExtent,
+  getFeatureinfo,
+  getFooter,
+  getInitialZoom,
+  getTileGridSettings,
+  getGroup,
+  getGroups,
+  getMain,
+  getMapSource,
+  getMapUtils,
+  getUtils,
+  getQueryableLayers,
+  getGroupLayers,
+  getResolutions,
+  getSearchableLayers,
+  getSize,
+  getLayer,
+  getLayerStylePicker,
+  getLayers,
+  getLayersByProperty,
+  getMap,
+  getMapName,
+  getMapUrl,
+  getProjection,
+  getProjectionCode,
+  getSource,
+  getStyle,
+  getStyles,
+  getTarget,
+  getTileGrid,
+  getTileSize,
+  getUrl,
+  getUrlParams,
+  getViewerOptions,
+  removeGroup,
+  removeLayer,
+  removeOverlays,
+  removeMarkers,
+  setStyle,
+  zoomToExtent,
+  getSelectionManager,
+  getStylewindow,
+  getEmbedded,
+  permalink,
+  generateUUID,
+  centerMarker
 });
 };
 
