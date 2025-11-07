@@ -31,7 +31,6 @@ import * as Loader from './src/loading';
 import Spinner from './src/utils/spinner';
 
 const Origo = function Origo(config, options = {}) {
-  /** Reference to the returned Component */
   let origo;
   let viewer;
   const origoConfig = {
@@ -58,7 +57,6 @@ const Origo = function Origo(config, options = {}) {
     ]
   };
 
-  // --- Kontrollera browser-stöd ---
   const isSupported = supports();
   const targetSelector = options.target || origoConfig.target;
   const targetEl = document.querySelector(targetSelector);
@@ -74,11 +72,11 @@ const Origo = function Origo(config, options = {}) {
     return null;
   }
 
-  // --- Init controls ---
-  const initControls = (controlDefs) => {
+  // --- SÄKRA initControls – hanterar undefined/null ---
+  const initControls = (controlDefs = []) => {
     const controls = [];
     controlDefs.forEach((def) => {
-      if ('name' in def) {
+      if (def && 'name' in def) {
         const controlName = titleCase(def.name);
         const controlOptions = def.options || {};
         if (controlName in origoControls) {
@@ -91,11 +89,11 @@ const Origo = function Origo(config, options = {}) {
     return controls;
   };
 
-  // --- Init extensions ---
-  const initExtensions = (extensionDefs) => {
+  // --- SÄKRA initExtensions – hanterar undefined/null ---
+  const initExtensions = (extensionDefs = []) => {
     const extensions = [];
     extensionDefs.forEach((def) => {
-      if ('name' in def) {
+      if (def && 'name' in def) {
         const extensionName = titleCase(def.name);
         const extensionOptions = def.options || {};
         if (extensionName in origoExtensions) {
@@ -107,32 +105,30 @@ const Origo = function Origo(config, options = {}) {
     return extensions;
   };
 
-  // --- API ---
   const api = () => viewer;
   const getConfig = () => origoConfig;
   api.controls = () => origoControls;
   api.extensions = () => origoExtensions;
 
-  // --- initViewer – Huvudfunktion ---
   const initViewer = () => {
     const defaultConfig = Object.assign({}, origoConfig, options);
 
-    // HANTERA INLINE ELLER EXTERN CONFIG
     const configPromise = typeof config === 'object' && config !== null
       ? Promise.resolve({ options: config })
       : loadResources(config, defaultConfig);
 
     configPromise
       .then((data) => {
-        const viewerOptions = data.options;
+        const viewerOptions = data.options || {};
         viewerOptions.target = targetSelector;
+
+        // SÄKRA: controls och extensions kan vara undefined
         viewerOptions.controls = initControls(viewerOptions.controls);
-        viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
+        viewerOptions.extensions = initExtensions(viewerOptions.extensions);
 
         viewer = Viewer(targetSelector, viewerOptions);
 
         viewer.on('loaded', () => {
-          // --- HANTERA ?mapStateId= ---
           const urlParams = new URLSearchParams(window.location.search);
           const mapStateId = urlParams.get('mapStateId');
 
@@ -141,45 +137,36 @@ const Origo = function Origo(config, options = {}) {
               .then(rawState => {
                 if (rawState && typeof rawState === 'object' && Object.keys(rawState).length > 0) {
                   try {
-                    // BYGG HASH MANUELT – säker mot null/undefined
                     const hashParts = [];
                     Object.keys(rawState).forEach(key => {
                       const value = rawState[key];
                       if (value !== null && value !== undefined && value !== '') {
-                        hashParts.push(`${key}=${encodeURIComponent(value)}`);
+                        hashParts.push(`${key}=${encodeURIComponent(String(value))}`);
                       }
                     });
                     const hashStr = hashParts.join('&');
                     const hashUrl = `#${hashStr}`;
-
                     const parsedState = permalink.parsePermalink(hashUrl);
                     if (parsedState) {
                       viewer.dispatch('changestate', parsedState);
-                      console.log('MapState återställt från ?mapStateId=', mapStateId);
                     }
                   } catch (err) {
-                    console.error('Kunde inte parsa mapstate:', err);
+                    console.error('Parse error:', err);
                   }
-                } else {
-                  console.warn('Inget giltigt mapstate från servern');
                 }
               })
-              .catch(err => {
-                console.error('Kunde inte hämta mapstate:', err);
-              });
+              .catch(err => console.error('Fetch error:', err));
           }
 
-          // Trigga load för extensions
           origo.dispatch('load', viewer);
         });
       })
       .catch(error => {
-        console.error('Kunde inte ladda config:', error);
+        console.error('Config load error:', error);
         renderError('config', targetSelector);
       });
   };
 
-  // --- HANTERA HASHCHANGE ---
   window.addEventListener('hashchange', (ev) => {
     const newParams = permalink.parsePermalink(ev.newURL);
     if (newParams && newParams.map) {
@@ -187,7 +174,6 @@ const Origo = function Origo(config, options = {}) {
     }
   });
 
-  // --- Returnera UI-komponent ---
   return ui.Component({
     api,
     getConfig,
