@@ -20,6 +20,7 @@ import featurelayer from './src/featurelayer';
 import getFeatureInfo from './src/getfeatureinfo';
 import getFeature from './src/getfeature';
 import * as Utils from './src/utils';
+import urlparser from './src/utils/urlparser';
 import dropdown from './src/dropdown';
 import { renderSvgIcon } from './src/utils/legendmaker';
 import SelectedItem from './src/models/SelectedItem';
@@ -123,17 +124,14 @@ const initViewer = () => {
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(rawState => {
             if (rawState) {
-              // ANVÄND Utils.urlparser – efter att du lagt till export i src/utils.js
-              const hashStr = Utils.urlparser.formatUrl(rawState);
+              const hashStr = urlparser.formatUrl(rawState); // Nu finns den
               const hashUrl = `#${hashStr}`;
               const parsedState = permalink.parsePermalink(hashUrl);
               if (parsedState) {
                 viewer.dispatch('changestate', parsedState);
               }
             }
-          }).catch(err => {
-            console.error('Restore failed:', err);
-          });
+          }).catch(err => console.error('Restore failed:', err));
         }
 
         origo.dispatch('load', viewer);
