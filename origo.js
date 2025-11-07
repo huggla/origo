@@ -31,6 +31,7 @@ import * as Loader from './src/loading';
 import Spinner from './src/utils/spinner';
 
 const Origo = function Origo(config, options = {}) {
+  /** Reference to the returned Component */
   let origo;
   let viewer;
   const origoConfig = {
@@ -57,6 +58,7 @@ const Origo = function Origo(config, options = {}) {
     ]
   };
 
+  // --- Kontrollera browser-stöd ---
   const isSupported = supports();
   const targetSelector = options.target || origoConfig.target;
   const targetEl = document.querySelector(targetSelector);
@@ -72,6 +74,7 @@ const Origo = function Origo(config, options = {}) {
     return null;
   }
 
+  // --- Init controls ---
   const initControls = (controlDefs) => {
     const controls = [];
     controlDefs.forEach((def) => {
@@ -88,6 +91,7 @@ const Origo = function Origo(config, options = {}) {
     return controls;
   };
 
+  // --- Init extensions ---
   const initExtensions = (extensionDefs) => {
     const extensions = [];
     extensionDefs.forEach((def) => {
@@ -103,12 +107,13 @@ const Origo = function Origo(config, options = {}) {
     return extensions;
   };
 
+  // --- API ---
   const api = () => viewer;
   const getConfig = () => origoConfig;
-
   api.controls = () => origoControls;
   api.extensions = () => origoExtensions;
 
+  // --- initViewer – Huvudfunktion ---
   const initViewer = () => {
     const defaultConfig = Object.assign({}, origoConfig, options);
 
@@ -127,40 +132,54 @@ const Origo = function Origo(config, options = {}) {
         viewer = Viewer(targetSelector, viewerOptions);
 
         viewer.on('loaded', () => {
-          // HANTERA ?mapStateId= – samma som extern JSON
+          // --- HANTERA ?mapStateId= ---
           const urlParams = new URLSearchParams(window.location.search);
           const mapStateId = urlParams.get('mapStateId');
 
           if (mapStateId) {
-            permalink.readStateFromServer(mapStateId).then(rawState => {
-              if (rawState) {
-                try {
-                  // Bygg hash manuellt – undvik formatUrl-buggar
-                  const hashStr = Object.keys(rawState)
-                    .map(key => `${key}=${rawState[key]}`)
-                    .join('&');
-                  const hashUrl = `#${hashStr}`;
-                  const parsedState = permalink.parsePermalink(hashUrl);
-                  if (parsedState) {
-                    viewer.dispatch('changestate', parsedState);
+            permalink.readStateFromServer(mapStateId)
+              .then(rawState => {
+                if (rawState && typeof rawState === 'object' && Object.keys(rawState).length > 0) {
+                  try {
+                    // BYGG HASH MANUELT – säker mot null/undefined
+                    const hashParts = [];
+                    Object.keys(rawState).forEach(key => {
+                      const value = rawState[key];
+                      if (value !== null && value !== undefined && value !== '') {
+                        hashParts.push(`${key}=${encodeURIComponent(value)}`);
+                      }
+                    });
+                    const hashStr = hashParts.join('&');
+                    const hashUrl = `#${hashStr}`;
+
+                    const parsedState = permalink.parsePermalink(hashUrl);
+                    if (parsedState) {
+                      viewer.dispatch('changestate', parsedState);
+                      console.log('MapState återställt från ?mapStateId=', mapStateId);
+                    }
+                  } catch (err) {
+                    console.error('Kunde inte parsa mapstate:', err);
                   }
-                } catch (err) {
-                  console.error('Restore failed:', err);
+                } else {
+                  console.warn('Inget giltigt mapstate från servern');
                 }
-              }
-            }).catch(err => console.error('Restore failed:', err));
+              })
+              .catch(err => {
+                console.error('Kunde inte hämta mapstate:', err);
+              });
           }
 
+          // Trigga load för extensions
           origo.dispatch('load', viewer);
         });
       })
       .catch(error => {
-        console.error('Failed to load config:', error);
+        console.error('Kunde inte ladda config:', error);
         renderError('config', targetSelector);
       });
   };
 
-  // HANTERA HASHCHANGE
+  // --- HANTERA HASHCHANGE ---
   window.addEventListener('hashchange', (ev) => {
     const newParams = permalink.parsePermalink(ev.newURL);
     if (newParams && newParams.map) {
@@ -168,14 +187,14 @@ const Origo = function Origo(config, options = {}) {
     }
   });
 
+  // --- Returnera UI-komponent ---
   return ui.Component({
     api,
     getConfig,
     onInit() {
-      const defaultConfig = Object.assign({}, origoConfig, options);
       const base = document.createElement('base');
-      base.href = defaultConfig.baseUrl || '/';
-      document.getElementsByTagName('head')[0].appendChild(base);
+      base.href = (options.baseUrl || origoConfig.baseUrl || '/');
+      document.head.appendChild(base);
       origo = this;
       initViewer();
     }
