@@ -451,92 +451,98 @@ const Viewer = function Viewer(targetOption, options = {}) {
     }
   };
 
-  return Component({
-    onInit() {
-      console.log('VIEWER: onInit started');
-      this.render();
+// SÄKRA this → använd en lokal variabel
+const viewer = this;
 
-      proj.registerProjections(proj4Defs);
-      setProjection(proj.Projection({ projectionCode, projectionExtent }));
-      tileGrid = maputils.tileGrid(tileGridSettings);
-      stylewindow = Stylewindow({ palette, viewer: this });
+return Component({
+  onInit() {
+    console.log('VIEWER: onInit started');
+    viewer.render();
 
-      setMap(Map(Object.assign(options, { projection, center, zoom, target: this.getId() })));
+    proj.registerProjections(proj4Defs);
+    setProjection(proj.Projection({ projectionCode, projectionExtent }));
+    tileGrid = maputils.tileGrid(tileGridSettings);
+    stylewindow = Stylewindow({ palette, viewer });
 
-      mergeSavedLayerProps(layerOptions, urlParams.layers)
-        .then(props => {
-          console.log('DEBUG: Layers loaded:', props);
-          this.addLayers(props);
+    setMap(Map(Object.assign(options, { projection, center, zoom, target: viewer.getId() })));
 
-          mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: this.getId() });
+    mergeSavedLayerProps(layerOptions, urlParams.layers)
+      .then(layerProps => {
+        console.log('DEBUG: Layers loaded:', layerProps);
+        viewer.addLayers(layerProps);  // ← NU ÄR DET RÄTT!
 
-          if (urlParams.pin) featureinfoOptions.savedPin = urlParams.pin;
-          else if (urlParams.selection) {
-            featureinfoOptions.savedSelection = new Feature({
-              geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
-            });
-          }
+        mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: viewer.getId() });
 
-          featureinfoOptions.viewer = this;
-          selectionmanager = Selectionmanager(featureinfoOptions);
-          featureinfo = Featureinfo(featureinfoOptions);
-          this.addComponent(selectionmanager);
-          this.addComponent(featureinfo);
-          this.addComponent(centerMarker);
-          this.addControls();
+        if (urlParams.pin) featureinfoOptions.savedPin = urlParams.pin;
+        else if (urlParams.selection) {
+          featureinfoOptions.savedSelection = new Feature({
+            geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
+          });
+        }
 
-          if (urlParams.feature) {
-            const [layerName, idPart] = urlParams.feature.split('.');
-            const layer = getLayer(layerName);
-            if (layer && layer.get('type') !== 'GROUP') {
-              const source = layer.getSource().source || layer.getSource();
-              let id = idPart;
-              if (layer.get('type') === 'WFS') {
-                let base = layerName;
-                if (layer.get('id')) base = layer.get('id').split(':').pop();
-                else if (layerName.includes('__')) base = layerName.split('__')[0];
-                id = `${base}.${idPart}`;
-              }
-              if (source.getFeatures().length > 0) {
-                displayFeatureInfo(source.getFeatureById(id), layerName);
-              } else {
-                source.once('featuresloadend', () => displayFeatureInfo(source.getFeatureById(id), layerName));
-              }
+        featureinfoOptions.viewer = viewer;
+        selectionmanager = Selectionmanager(featureinfoOptions);
+        featureinfo = Featureinfo(featureinfoOptions);
+        viewer.addComponent(selectionmanager);
+        viewer.addComponent(featureinfo);
+        viewer.addComponent(centerMarker);
+        viewer.addControls();
+
+        if (urlParams.feature) {
+          const [layerName, idPart] = urlParams.feature.split('.');
+          const layer = viewer.getLayer(layerName);
+          if (layer && layer.get('type') !== 'GROUP') {
+            const source = layer.getSource().source || layer.getSource();
+            let id = idPart;
+            if (layer.get('type') === 'WFS') {
+              let base = layerName;
+              if (layer.get('id')) base = layer.get('id').split(':').pop();
+              else if (layerName.includes('__')) base = layerName.split('__')[0];
+              id = `${base}.${idPart}`;
+            }
+            if (source.getFeatures().length > 0) {
+              displayFeatureInfo(source.getFeatureById(id), layerName);
+            } else {
+              source.once('featuresloadend', () => displayFeatureInfo(source.getFeatureById(id), layerName));
             }
           }
+        }
 
-          if (!urlParams.zoom && !urlParams.mapStateId && startExtent && map) {
-            map.getView().fit(startExtent, { size: map.getSize() });
-          }
+        if (!urlParams.zoom && !urlParams.mapStateId && startExtent && map) {
+          map.getView().fit(startExtent, { size: map.getSize() });
+        }
 
-          console.log('VIEWER: Dispatching loaded');
-          this.dispatch('loaded');
-        })
-        .catch(err => console.error('Layer load error:', err));
-    },
+        console.log('VIEWER: Dispatching loaded');
+        viewer.dispatch('loaded');
+      })
+      .catch(err => {
+        console.error('Layer load error:', err);
+        viewer.dispatch('loaded'); // Fortsätt ändå
+      });
+  },
 
-    render() {
-      const html = `<div id="${this.getId()}" class="${cls}">
-                      <div class="transparent flex column height-full width-full absolute top-left no-margin z-index-low">
-                        ${main.render()}${footer.render()}
-                      </div>
+  render() {
+    const html = `<div id="${viewer.getId()}" class="${cls}">
+                    <div class="transparent flex column height-full width-full absolute top-left no-margin z-index-low">
+                      ${main.render()}${footer.render()}
                     </div>
-                    <div id="loading" class="hide"><div class="loading-spinner"></div></div>`;
-      const el = document.querySelector(target);
-      if (!el) throw new Error(`Target not found: ${target}`);
-      el.innerHTML = html;
-      this.dispatch('render');
-    },
+                  </div>
+                  <div id="loading" class="hide"><div class="loading-spinner"></div></div>`;
+    const el = document.querySelector(target);
+    if (!el) throw new Error(`Target not found: ${target}`);
+    el.innerHTML = html;
+    viewer.dispatch('render');
+  },
 
-    addControl, addControls, addGroup, addGroups, addLayer, addLayers, addSource, addStyle, addMarker,
-    getBreakPoints, getCenter, getClusterOptions, getConsoleId, getControlByName, getExtent, getFeatureinfo,
-    getFooter, getInitialZoom, getTileGridSettings, getGroup, getGroups, getMain, getMapSource, getMapUtils,
-    getUtils, getQueryableLayers, getGroupLayers, getResolutions, getSearchableLayers, getSize, getLayer,
-    getLayerStylePicker, getLayers, getLayersByProperty, getMap, getMapName, getMapUrl, getProjection,
-    getProjectionCode, getSource, getStyle, getStyles, getTarget, getTileGrid, getTileSize, getUrl,
-    getUrlParams, getViewerOptions, removeGroup, removeLayer, removeOverlays, removeMarkers, setStyle,
-    zoomToExtent, getSelectionManager, getStylewindow, getEmbedded, permalink, generateUUID, centerMarker
-  });
+  addControl, addControls, addGroup, addGroups, addLayer, addLayers, addSource, addStyle, addMarker,
+  getBreakPoints, getCenter, getClusterOptions, getConsoleId, getControlByName, getExtent, getFeatureinfo,
+  getFooter, getInitialZoom, getTileGridSettings, getGroup, getGroups, getMain, getMapSource, getMapUtils,
+  getUtils, getQueryableLayers, getGroupLayers, getResolutions, getSearchableLayers, getSize, getLayer,
+  getLayerStylePicker, getLayers, getLayersByProperty, getMap, getMapName, getMapUrl, getProjection,
+  getProjectionCode, getSource, getStyle, getStyles, getTarget, getTileGrid, getTileSize, getUrl,
+  getUrlParams, getViewerOptions, removeGroup, removeLayer, removeOverlays, removeMarkers, setStyle,
+  zoomToExtent, getSelectionManager, getStylewindow, getEmbedded, permalink, generateUUID, centerMarker
+});
 };
 
 export default Viewer;
