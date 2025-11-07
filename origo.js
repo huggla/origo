@@ -118,7 +118,6 @@ const initViewer = () => {
   } else if (typeof config === 'object' && config !== null) {
     configPromise = Promise.resolve({ options: config });
   } else {
-    console.error('Origo: Invalid config');
     configPromise = Promise.reject(new Error('Invalid config'));
   }
 
@@ -126,23 +125,18 @@ const initViewer = () => {
     .then(data => {
       const viewerOptions = data?.options || {};
 
-      // SÄKRA: target
-      viewerOptions.target = targetSelector;
+      // TA BORT DENNA RAD:
+      // viewerOptions.target = targetSelector;
 
-      // SÄKRA: controls → array
-      viewerOptions.controls = Array.isArray(viewerOptions.controls)
-        ? viewerOptions.controls
-        : [];
+      viewerOptions.controls = Array.isArray(viewerOptions.controls) ? viewerOptions.controls : [];
+      viewerOptions.extensions = Array.isArray(viewerOptions.extensions) ? viewerOptions.extensions : [];
+      viewerOptions.layers = Array.isArray(viewerOptions.layers) ? viewerOptions.layers : [];
+      viewerOptions.map = viewerOptions.map || {};
+      viewerOptions.projection = viewerOptions.projection || {};
+      viewerOptions.featureinfoOptions = viewerOptions.featureinfoOptions || {};
+      viewerOptions.pageSettings = viewerOptions.pageSettings || {};
 
-      // SÄKRA: extensions → array
-      viewerOptions.extensions = Array.isArray(viewerOptions.extensions)
-        ? viewerOptions.extensions
-        : [];
-
-      // Nu är viewerOptions 100% säker
-      console.log('DEBUG: Final viewerOptions.controls:', viewerOptions.controls);
-      console.log('DEBUG: Final viewerOptions.extensions:', viewerOptions.extensions);
-
+      // SKICKA BÅDE targetSelector och viewerOptions
       viewer = Viewer(targetSelector, viewerOptions);
 
       viewer.on('loaded', () => {
@@ -152,7 +146,7 @@ const initViewer = () => {
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId)
             .then(rawState => {
-              if (rawState && typeof rawState === 'object' && Object.keys(rawState).length > 0) {
+              if (rawState && typeof rawState === 'object') {
                 const hash = Object.entries(rawState)
                   .filter(([, v]) => v != null)
                   .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
