@@ -27,6 +27,7 @@ import 'elm-pep';
 import 'pepjs';
 import 'drag-drop-touch';
 import permalink from './src/permalink/permalink';
+import permalinkStore from './src/permalink/permalinkstore';
 import * as Loader from './src/loading';
 import Spinner from './src/utils/spinner';
 
@@ -103,44 +104,82 @@ const Origo = function Origo(configPath, options = {}) {
   api.extensions = () => origoExtensions;
 
   /** Helper that initialises a new viewer  */
-const initViewer = () => {
-  const defaultConfig = Object.assign({}, origoConfig, options);
-  loadResources(configPath, defaultConfig)
-    .then(async (data) => {
-      const viewerOptions = data.options;
-      viewerOptions.controls = await initControls(viewerOptions.controls);
-      viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
-      return viewerOptions;
-    })
-    .then((viewerOptions) => {
-      const target = viewerOptions.target;
-      viewer = Viewer(target, viewerOptions);
+viewer.on('loaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const mapStateId = urlParams.get('mapStateId');
 
-      viewer.on('loaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const mapStateId = urlParams.get('mapStateId');
+  if (mapStateId) {
+    permalink.readStateFromServer(mapStateId).then(rawState => {
+      if (rawState) {
+        // STEG 1: Skapa ett "falskt" state-objekt med strängar
+        const serializedState = {};
 
-        if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(rawState => {
-            if (rawState) {
-              // ANVÄND Utils.urlparser – efter att du lagt till export i src/utils.js
-              const hashStr = Utils.urlparser.formatUrl(rawState);
-              const hashUrl = `#${hashStr}`;
-              const parsedState = permalink.parsePermalink(hashUrl);
-              if (parsedState) {
-                viewer.dispatch('changestate', parsedState);
-              }
-            }
-          }).catch(err => {
-            console.error('Restore failed:', err);
-          });
+        // Center: [x,y] → "x,y"
+        if (rawState.center) {
+          serializedState.center = Array.isArray(rawState.center)
+            ? rawState.center.map(coord => Math.round(coord)).join(',')
+            : rawState.center;
         }
 
-        origo.dispatch('load', viewer);
-      });
-    })
-    .catch(error => console.error(error));
-};
+        // Zoom: number → string
+        if (rawState.zoom !== undefined) {
+          serializedState.zoom = String(rawState.zoom);
+        }
+
+        // Layers: objekt → "layer1,v=1,s=1;layer2,v=0"
+        if (rawState.layers) {
+          const layers = viewer.getLayers();
+          const layerMap = {};
+          layers.forEach(l => { layerMap[l.get('name')] = l; });
+
+          const saveLayers = [];
+          Object.keys(rawState.layers).forEach(name => {
+            const l = layerMap[name];
+            const s = rawState.layers[name];
+            if (l && s) {
+              const saveLayer = { name };
+              if (s.visible !== undefined) saveLayer.v = s.visible ? 1 : 0;
+              if (s.legend !== undefined) saveLayer.s = s.legend ? 1 : 0;
+              if (s.opacity !== undefined) saveLayer.o = Math.round(s.opacity * 100);
+              if (s.altStyleIndex !== undefined) saveLayer.sn = s.altStyleIndex;
+              if (s.activeThemes) saveLayer.th = s.activeThemes.join('~');
+              saveLayers.push(saveLayer);
+            }
+          });
+
+          // Använd samma serialisering som permalinkStore.getSaveLayers
+          serializedState.layers = saveLayers
+            .map(layer => Utils.urlparser.stringify(layer, { topmost: 'name' }))
+            .join(',');
+        }
+
+        // Legend, pin, feature, map – redan sträng
+        if (rawState.legend) serializedState.legend = rawState.legend;
+        if (rawState.pin) {
+          serializedState.pin = Array.isArray(rawState.pin)
+            ? rawState.pin.map(Math.round).join(',')
+            : rawState.pin;
+        }
+        if (rawState.feature) serializedState.feature = rawState.feature;
+        if (rawState.map) serializedState.map = rawState.map;
+
+        // STEG 2: Använd Utils.urlparser.formatUrl – exakt som Origo gör
+        const hashStr = Utils.urlparser.formatUrl(serializedState);
+        const hashUrl = `#${hashStr}`;
+        const parsedState = permalink.parsePermalink(hashUrl);
+
+        if (parsedState) {
+          viewer.dispatch('changestate', parsedState);
+          console.log('MapState återställt via Utils.urlparser!');
+        }
+      }
+    }).catch(err => {
+      console.error('Restore failed:', err);
+    });
+  }
+
+  origo.dispatch('load', viewer);
+});
 
   return ui.Component({
     api,
