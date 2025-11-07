@@ -20,7 +20,6 @@ import featurelayer from './src/featurelayer';
 import getFeatureInfo from './src/getfeatureinfo';
 import getFeature from './src/getfeature';
 import * as Utils from './src/utils';
-import urlparser from './src/utils/urlparser';
 import dropdown from './src/dropdown';
 import { renderSvgIcon } from './src/utils/legendmaker';
 import SelectedItem from './src/models/SelectedItem';
@@ -107,37 +106,97 @@ const Origo = function Origo(configPath, options = {}) {
 const initViewer = () => {
   const defaultConfig = Object.assign({}, origoConfig, options);
   loadResources(configPath, defaultConfig)
-    .then(async (data) => {
+    .then((data) => {
       const viewerOptions = data.options;
-      viewerOptions.controls = await initControls(viewerOptions.controls);
+      viewerOptions.controls = initControls(viewerOptions.controls);
       viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
-      return viewerOptions;
-    })
-    .then((viewerOptions) => {
       const target = viewerOptions.target;
       viewer = Viewer(target, viewerOptions);
 
+      // --- VÄNTA PÅ 'loaded' ---
       viewer.on('loaded', () => {
+        // --- HANTERA ?mapStateId= ---
         const urlParams = new URLSearchParams(window.location.search);
         const mapStateId = urlParams.get('mapStateId');
 
         if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(rawState => {
-            if (rawState) {
-              const hashStr = urlparser.formatUrl(rawState); // Nu finns den
-              const hashUrl = `#${hashStr}`;
-              const parsedState = permalink.parsePermalink(hashUrl);
-              if (parsedState) {
-                viewer.dispatch('changestate', parsedState);
+          permalink.readStateFromServer(mapStateId).then(state => {
+            if (state) {
+              try {
+                const view = viewer.getMap().getView();
+
+                // Center & Zoom
+                if (state.center) view.setCenter(state.center);
+                if (state.zoom !== undefined) view.setZoom(state.zoom);
+
+                // Layers: visible, legend, opacity, style
+                if (state.layers) {
+                  Object.keys(state.layers).forEach(name => {
+                    const layer = viewer.getLayer(name);
+                    if (layer) {
+                      const l = state.layers[name];
+                      if (l.visible !== undefined) layer.setVisible(l.visible);
+                      if (l.legend !== undefined) layer.set('legend', l.legend);
+                      if (l.opacity !== undefined) layer.setOpacity(l.opacity);
+                      if (l.altStyleIndex !== undefined) {
+                        layer.set('altStyleIndex', l.altStyleIndex);
+                        // Om du har en metod för att byta stil:
+                        // viewer.getStyleManager()?.setActiveStyle(layer, l.altStyleIndex);
+                      }
+                    }
+                  });
+                }
+
+                // Legend control
+                if (state.legend) {
+                  const legend = viewer.getControlByName('legend');
+                  if (legend && legend.setVisible) {
+                    const isExpanded = Array.isArray(state.legend)
+                      ? state.legend.includes('expanded')
+                      : state.legend.includes('expanded');
+                    legend.setVisible(isExpanded);
+                  }
+                }
+
+                // Pin
+                if (state.pin) {
+                  const featureinfo = viewer.getFeatureinfo();
+                  if (featureinfo && featureinfo.setPin) {
+                    featureinfo.setPin(state.pin, true);
+                  }
+                }
+
+                // Feature selection
+                if (state.feature) {
+                  const featureinfo = viewer.getFeatureinfo();
+                  if (featureinfo && featureinfo.setFeatureId) {
+                    featureinfo.setFeatureId(state.feature);
+                  }
+                }
+
+                // Map name (om du använder map-switch)
+                if (state.map) {
+                  viewer.setMapName(state.map);
+                }
+
+                console.log('MapState återställt från ?mapStateId=', mapStateId);
+              } catch (err) {
+                console.error('Kunde inte applicera mapstate:', err);
               }
             }
-          }).catch(err => console.error('Restore failed:', err));
+          }).catch(err => {
+            console.error('Restore failed:', err);
+          });
         }
 
+        // --- Trigga 'load' för extensions ---
         origo.dispatch('load', viewer);
       });
     })
-    .catch(error => console.error(error));
+    .catch(error => {
+      console.error('Failed to load config:', error);
+      renderError(error);
+    });
 };
   // Add a listener to handle a new sharemap when using hash format.
   window.addEventListener('hashchange', (ev) => {
