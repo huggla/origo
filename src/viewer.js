@@ -452,73 +452,63 @@ const Viewer = function Viewer(targetOption, options = {}) {
   };
 
 return Component({
-  onInit() {
-    console.log('VIEWER: onInit started');
+onInit() {
+  console.log('VIEWER: onInit started');
+  this.render();
 
-    // this ÄR Viewer-instansen här!
-    this.render();
+  proj.registerProjections(proj4Defs);
+  setProjection(proj.Projection({ projectionCode, projectionExtent }));
+  tileGrid = maputils.tileGrid(tileGridSettings);
+  stylewindow = Stylewindow({ palette, viewer: this });
 
-    proj.registerProjections(proj4Defs);
-    setProjection(proj.Projection({ projectionCode, projectionExtent }));
-    tileGrid = maputils.tileGrid(tileGridSettings);
-    stylewindow = Stylewindow({ palette, viewer: this });
+  // SKAPA MAP FÖRST
+  setMap(Map(Object.assign(options, { projection, center, zoom, target: this.getId() })));
 
-    setMap(Map(Object.assign(options, { projection, center, zoom, target: this.getId() })));
+  // VÄNTA PÅ MAP + LAYERS
+  mergeSavedLayerProps(layerOptions, urlParams.layers)
+    .then(layerProps => {
+      console.log('DEBUG: Layers loaded:', layerProps);
 
-    mergeSavedLayerProps(layerOptions, urlParams.layers)
-      .then(layerProps => {
-        console.log('DEBUG: Layers loaded:', layerProps);
-        this.addLayers(layerProps);
+      // SÄKERSTÄLL ATT MAP FINNS
+      if (!map) {
+        console.error('Map is not initialized!');
+        return;
+      }
 
-        mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: this.getId() });
+      this.addLayers(layerProps);
 
-        if (urlParams.pin) featureinfoOptions.savedPin = urlParams.pin;
-        else if (urlParams.selection) {
-          featureinfoOptions.savedSelection = new Feature({
-            geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
-          });
-        }
+      mapSize = MapSize(map, { breakPoints, breakPointsPrefix, mapId: this.getId() });
 
-        featureinfoOptions.viewer = this;
-        selectionmanager = Selectionmanager(featureinfoOptions);
-        featureinfo = Featureinfo(featureinfoOptions);
-        this.addComponent(selectionmanager);
-        this.addComponent(featureinfo);
-        this.addComponent(centerMarker);
-        this.addControls();
+      // ... resten av koden (featureinfo, controls, etc.)
+      if (urlParams.pin) featureinfoOptions.savedPin = urlParams.pin;
+      else if (urlParams.selection) {
+        featureinfoOptions.savedSelection = new Feature({
+          geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
+        });
+      }
 
-        if (urlParams.feature) {
-          const [layerName, idPart] = urlParams.feature.split('.');
-          const layer = this.getLayer(layerName);
-          if (layer && layer.get('type') !== 'GROUP') {
-            const source = layer.getSource().source || layer.getSource();
-            let id = idPart;
-            if (layer.get('type') === 'WFS') {
-              let base = layerName;
-              if (layer.get('id')) base = layer.get('id').split(':').pop();
-              else if (layerName.includes('__')) base = layerName.split('__')[0];
-              id = `${base}.${idPart}`;
-            }
-            if (source.getFeatures().length > 0) {
-              displayFeatureInfo(source.getFeatureById(id), layerName);
-            } else {
-              source.once('featuresloadend', () => displayFeatureInfo(source.getFeatureById(id), layerName));
-            }
-          }
-        }
+      featureinfoOptions.viewer = this;
+      selectionmanager = Selectionmanager(featureinfoOptions);
+      featureinfo = Featureinfo(featureinfoOptions);
+      this.addComponent(selectionmanager);
+      this.addComponent(featureinfo);
+      this.addComponent(centerMarker);
+      this.addControls();
 
-        if (!urlParams.zoom && !urlParams.mapStateId && startExtent && map) {
-          map.getView().fit(startExtent, { size: map.getSize() });
-        }
+      // ... featureinfo, startExtent, etc.
 
-        console.log('VIEWER: Dispatching loaded');
-        this.dispatch('loaded');
-      })
-      .catch(err => {
-        console.error('Layer load error:', err);
-        this.dispatch('loaded');
-      });
-  },
+      if (!urlParams.zoom && !urlParams.mapStateId && startExtent && map) {
+        map.getView().fit(startExtent, { size: map.getSize() });
+      }
+
+      console.log('VIEWER: Dispatching loaded');
+      this.dispatch('loaded');
+    })
+    .catch(err => {
+      console.error('Layer load error:', err);
+      this.dispatch('loaded');
+    });
+},
 
   render() {
     const html = `<div id="${this.getId()}" class="${cls}">
