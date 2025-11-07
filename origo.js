@@ -27,7 +27,6 @@ import 'elm-pep';
 import 'pepjs';
 import 'drag-drop-touch';
 import permalink from './src/permalink/permalink';
-import permalinkStore from './src/permalink/permalinkstore';
 import * as Loader from './src/loading';
 import Spinner from './src/utils/spinner';
 
@@ -104,59 +103,31 @@ const Origo = function Origo(configPath, options = {}) {
   api.extensions = () => origoExtensions;
 
   /** Helper that initialises a new viewer  */
-const initViewer = () => {
-  const defaultConfig = Object.assign({}, origoConfig, options);
-  loadResources(configPath, defaultConfig)
-    .then(async (data) => {
-      const viewerOptions = data.options;
-      viewerOptions.controls = await initControls(viewerOptions.controls);
-      viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
-      return viewerOptions;
-    })
-    .then((viewerOptions) => {
-      const target = viewerOptions.target;
-      viewer = Viewer(target, viewerOptions);
+  const initViewer = () => {
+    const defaultConfig = Object.assign({}, origoConfig, options);
+    loadResources(configPath, defaultConfig)
+      .then((data) => {
+        const viewerOptions = data.options;
+        viewerOptions.controls = initControls(viewerOptions.controls);
+        viewerOptions.extensions = initExtensions(viewerOptions.extensions || []);
+        const target = viewerOptions.target;
+        viewer = Viewer(target, viewerOptions);
+        viewer.on('loaded', () => {
+          // Inform listeners that there is a new Viewer in town
+          origo.dispatch('load', viewer);
+        });
+      })
+      .catch(error => console.error(error));
+  };
+  // Add a listener to handle a new sharemap when using hash format.
+  window.addEventListener('hashchange', (ev) => {
+    const newParams = permalink.parsePermalink(ev.newURL);
 
-      // --- VÄNTA PÅ 'loaded' – karta + lager + controls finns ---
-      viewer.on('loaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const mapStateId = urlParams.get('mapStateId');
-
-        if (mapStateId) {
-          permalink.readStateFromServer(mapStateId).then(rawState => {
-            if (rawState) {
-              try {
-                // ÅTERANVÄND permalink.serializeState – en enda källa till sanningen
-                const serialized = permalink.serializeState(rawState, viewer);
-                const hashStr = Utils.urlparser.formatUrl(serialized);
-                const hashUrl = `#${hashStr}`;
-                const parsedState = permalink.parsePermalink(hashUrl);
-
-                if (parsedState) {
-                  viewer.dispatch('changestate', parsedState);
-                  console.log('MapState återställt från ?mapStateId=', mapStateId);
-                }
-              } catch (err) {
-                console.error('Restore failed:', err);
-              }
-            }
-          }).catch(err => {
-            console.error('Restore failed:', err);
-          });
-        }
-
-        // --- Trigga 'load' för extensions ---
-        origo.dispatch('load', viewer);
-      });
-    })
-    .catch(error => {
-      console.error('Failed to load config:', error);
-      renderError(error);
-    });
-};
-
-  origo.dispatch('load', viewer);
-});
+    if (newParams.map) {
+      // "Reboot" the application by creating a new viewer instance using the original configuration and the new sharemap state
+      initViewer();
+    }
+  });
 
   return ui.Component({
     api,
