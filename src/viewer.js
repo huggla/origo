@@ -51,15 +51,22 @@ const Viewer = function Viewer(targetOption, options = {}) {
     params: urlParams = {},
     proj4Defs,
     styles = {},
-    source = {},
     clusterOptions = {},
     tileGridOptions = {},
     url,
     palette
+    // source = {} ← TA BORT DENNA RAD
   } = options;
 
+  // SÄKRA target
+  const target = targetOption || options.target;
+  if (!target || typeof target !== 'string') {
+    throw new Error(`Viewer: Invalid target: ${target}. Must be a valid CSS selector (e.g. '#map')`);
+  }
+
+  // SÄKRA source – alltid ett objekt
   const source = options.source || {};
-  
+
   let {
     projection
   } = options;
