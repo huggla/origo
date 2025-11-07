@@ -55,10 +55,10 @@ const Viewer = function Viewer(targetOption, options = {}) {
     tileGridOptions = {},
     url,
     palette
-    // source = {} ← TA BORT DENNA RAD
+    // source = {} ← BORTTAGEN
   } = options;
 
-  // SÄKRA target
+  // SÄKRA target – ENDAST HÄR
   const target = targetOption || options.target;
   if (!target || typeof target !== 'string') {
     throw new Error(`Viewer: Invalid target: ${target}. Must be a valid CSS selector (e.g. '#map')`);
@@ -72,10 +72,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
   } = options;
 
   const viewerOptions = Object.assign({}, options);
-  const target = targetOption || options.target;
-  if (!target || typeof target !== 'string') {
-    throw new Error(`Viewer: Invalid target: ${target}. Expected CSS selector.`);
-  }
   const center = urlParams.center || centerOption;
   const zoom = urlParams.zoom || zoomOption;
   const groups = flattenGroups(groupOptions);
@@ -83,7 +79,7 @@ const Viewer = function Viewer(targetOption, options = {}) {
 
   const getCapabilitiesLayers = () => {
     const capabilitiesPromises = [];
-    (Object.keys(source)).forEach(sourceName => {
+    Object.keys(source).forEach(sourceName => {
       const sourceOptions = source[sourceName];
       if (sourceOptions && sourceOptions.capabilitiesURL) {
         capabilitiesPromises.push(getCapabilities(sourceName, sourceOptions.capabilitiesURL));
@@ -124,7 +120,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     if (control.onAdd && control.dispatch) {
       if (control.options.hideWhenEmbedded && isEmbedded(this.getTarget())) {
         if (typeof control.hide === 'function') {
-          // Exclude these controls in the array since they can't be hidden and the solution is to not add them. If the control hasn't a hide method don't add the control.
           if (!['sharemap', 'link', 'about', 'print', 'draganddrop'].includes(control.name)) {
             this.addComponent(control);
           }
@@ -201,7 +196,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     let layerNames = '';
     let mapUrl;
 
-    // delete search arguments if present
     if (window.location.search) {
       mapUrl = window.location.href.replace(window.location.search, '?');
     } else {
@@ -212,7 +206,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     const zoomLevel = mapView.getZoom();
     const layers = map.getLayers();
 
-    // add layer if visible
     layers.forEach((el) => {
       if (el.getVisible() === true) {
         layerNames += `${el.get('name')};`;
@@ -338,9 +331,7 @@ const Viewer = function Viewer(targetOption, options = {}) {
       return layerlist.map(layer => {
         let secure;
         let layername = layer.name;
-        // remove workspace if syntax is workspace:layername
         layername = layername.split(':').pop();
-        // remove double underscore plus a suffix from layer name
         if (layername.includes('__')) {
           layername = layername.substring(0, layername.lastIndexOf('__'));
         }
@@ -370,7 +361,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
             visible: false,
             legend: false
           };
-          // Apply changed style
           if (savedLayerProps[layerName] && savedLayerProps[layerName].altStyleIndex > -1) {
             const altStyle = initialProps.stylePicker[savedLayerProps[layerName].altStyleIndex];
             savedProps.clusterStyle = altStyle.clusterStyle;
@@ -493,7 +483,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     });
   };
 
-  // removes group and any depending subgroups and layers
   const removeGroup = function removeGroup(groupName) {
     const group = groups.find(item => item.name === groupName);
     if (group) {
@@ -539,11 +528,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     return urlParams;
   };
 
-  /**
-   * Internal helper used when urlParams.feature is set and the popup should be displayed.
-   * @param {any} feature
-   * @param {any} layerName
-   */
   const displayFeatureInfo = function displayFeatureInfo(feature, layerName) {
     if (feature) {
       const fidsbylayer = {};
@@ -587,7 +571,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
           if (urlParams.pin) {
             featureinfoOptions.savedPin = urlParams.pin;
           } else if (urlParams.selection) {
-            // This needs further development for proper handling in permalink
             featureinfoOptions.savedSelection = new Feature({
               geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
             });
@@ -610,39 +593,23 @@ const Viewer = function Viewer(targetOption, options = {}) {
             if (layer && layer.get('type') !== 'GROUP') {
               const layerType = layer.get('type');
               const layerSource = layer.getSource().source ? layer.getSource().source : layer.getSource();
-              // Assume that id is just the second part of the argumment and adjust it for special cases later.
               let id = featureId.split('.')[1];
 
               if (layerType === 'WFS') {
-                // WFS uses the layername as a part of the featureId. Problem is that it what the server think is the name that matters.
-                // First we assume that the layername is actually correct, then take the special cases
                 let idLayerPart = layerName;
                 const layerId = layer.get('id');
                 if (layerId) {
-                  // if layer explicitly has set the id it takes precedense over name
-                  // layer name already have popped the namespace part, but id is untouched.
                   idLayerPart = layerId.split(':').pop();
                 } else if (layerName.includes('__')) {
-                  // If using the __-notation to use same layer several times, we must only use the actual layer name
                   idLayerPart = layerName.split('__')[0];
                 }
-                // Build the correct WFS id
                 id = `${idLayerPart}.${id}`;
               }
 
-              // Some layer types may already have been loaded, e.g. GeoJson with static configured features. As features are loaded
-              // on creation it is impossible to listen to the featuresloadend event, but on the other hand the features will be ready already
-              // when we get here. It is highly unlikely that a remote source is finished already, but that would work as well.
               if (layerSource.getFeatures().length > 0) {
                 displayFeatureInfo(layerSource.getFeatureById(id), layerName);
               } else {
-                // Set up an eventhandler and wait for the source to finsish loading if there are no features yet.
-                // Important that the source actually emits this event.
                 layerSource.once('featuresloadend', () => {
-                  // FIXME: ensure that feature is loaded. If using bbox and feature is outside default extent it will not be found.
-                  // Workaround is to have a default extent covering the entire map with the layer in visible range or use strategy all
-                  // Most likely it will work as sharemap links contains center and zoom so extent will be visible. Most sane people
-                  // will only share maps where the selected feature is in view
                   displayFeatureInfo(layerSource.getFeatureById(id), layerName);
                 });
               }
