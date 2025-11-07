@@ -110,15 +110,17 @@ const Origo = function Origo(config, options = {}) {
 
   const initViewer = () => {
     const defaultConfig = Object.assign({}, origoConfig, options);
-
+console.log('DEBUG: config type:', typeof config, 'value:', config); // ← LÄGG TILL DENNA
     // NY LOGIK: Kalla loadResources ENDAST om config är en sträng
     const configPromise = typeof config === 'string'
       ? loadResources(config, defaultConfig)
       : Promise.resolve({ options: config || {} });
-
+console.log('DEBUG: configPromise created'); // ← LÄGG TILL DENNA
     configPromise
       .then(data => {
+        console.log('DEBUG: configPromise resolved, data:', data); // ← LÄGG TILL DENNA
         const viewerOptions = (data && data.options) || {};
+        console.log('DEBUG: viewerOptions:', viewerOptions); // ← LÄGG TILL DENNA
         viewerOptions.target = targetSelector;
         viewerOptions.controls = initControls(viewerOptions.controls);
         viewerOptions.extensions = initExtensions(viewerOptions.extensions);
