@@ -1,111 +1,146 @@
-import permalinkParser from './permalinkparser';
-import permalinkStore from './permalinkstore';
 import urlparser from '../utils/urlparser';
+import permalinkStore from './permalinkstore';
+import permalinkParser from './permalinkparser';
 
-let saveOnServerServiceEndPoint = '';
+const permalink = {};
 
-export default (() => ({
-  getSaveLayers: function getSaveLayers(layers) {
-    return urlparser.formatUrl({ layers: permalinkStore.getSaveLayers(layers) });
-  },
-  getHash: function getHash(viewer) {
-    return (urlparser.formatUrl(permalinkStore.getState(viewer)));
-  },
-  getPermalink: function getPermalink(viewer, options) {
-    let url = '';
-    if (options && options.mapStateId) {
-      url = `${permalinkStore.getUrl(viewer)}?mapStateId=${options.mapStateId}`;
-    } else {
-      const hash = this.getHash(viewer);
-      url = `${permalinkStore.getUrl(viewer)}#${hash}`;
-    }
-    return (url);
-  },
-  parsePermalink: function parsePermalink(url) {
-    let urlSearch;
-    if (url.indexOf('#') > -1) {
-      urlSearch = url.split('#')[1];
-    } else {
-      urlSearch = url;
-    }
-    const urlParts = urlSearch.split('&');
-    const urlAsObj = {};
-    urlParts.forEach((part) => {
-      const key = part.split('=')[0];
-      const val = part.split('=')[1];
-      switch (key) {
-        case 'layers':
-          urlAsObj.layers = permalinkParser.layers(val);
-          break;
-        case 'zoom':
-          urlAsObj.zoom = permalinkParser.zoom(val);
-          break;
-        case 'center':
-          urlAsObj.center = permalinkParser.center(val);
-          break;
-        case 'selection':
-          urlAsObj.selection = permalinkParser.selection(val);
-          break;
-        case 'feature':
-          urlAsObj.feature = permalinkParser.feature(val);
-          break;
-        case 'pin':
-          urlAsObj.pin = permalinkParser.pin(val);
-          break;
-        case 'map':
-          urlAsObj.map = permalinkParser.map(val);
-          break;
-        case 'controls':
-          urlAsObj.controls = permalinkParser.controls(val);
-          break;
-        case 'controlDraw':
-          urlAsObj.controlDraw = permalinkParser.controlDraw(val);
-          break;
-        case 'legend':
-          urlAsObj.legend = permalinkParser.legend(val);
-          break;
-        case 'controlMeasure':
-          urlAsObj.controlMeasure = permalinkParser.controlMeasure(val);
-          break;
-        default:
-          break;
+// --- NY FUNKTION: serializeState – används av både getHash och origo.js ---
+const serializeState = (state, viewer) => {
+  const serialized = {};
+
+  // Center: [x, y] → "x,y" (avrundat)
+  if (state.center) {
+    serialized.center = Array.isArray(state.center)
+      ? state.center.map(coord => Math.round(coord)).join(',')
+      : state.center;
+  }
+
+  // Zoom: number → string
+  if (state.zoom !== undefined) {
+    serialized.zoom = String(state.zoom);
+  }
+
+  // Layers: objekt → "layer1,v=1,s=1;layer2,v=0"
+  if (state.layers && viewer) {
+    const layers = viewer.getLayers();
+    const layerMap = {};
+    layers.forEach(l => { layerMap[l.get('name')] = l; });
+
+    const saveLayers = [];
+    Object.keys(state.layers).forEach(name => {
+      const layerState = state.layers[name];
+      const layer = layerMap[name];
+      if (layer && layerState) {
+        const saveLayer = { name };
+        if (layerState.visible !== undefined) saveLayer.v = layerState.visible ? 1 : 0;
+        if (layerState.legend !== undefined) saveLayer.s = layerState.legend ? 1 : 0;
+        if (layerState.opacity !== undefined) saveLayer.o = Math.round(layerState.opacity * 100);
+        if (layerState.altStyleIndex !== undefined) saveLayer.sn = layerState.altStyleIndex;
+        if (layerState.activeThemes) saveLayer.th = layerState.activeThemes.join('~');
+        saveLayers.push(saveLayer);
       }
     });
-    return urlAsObj || false;
-  },
-  setSaveOnServerServiceEndpoint: function setSaveOnServerServiceEndPoint(url) {
-    saveOnServerServiceEndPoint = url;
-  },
-  saveStateToServer: function saveStateToServer(viewer) {
-    return fetch(saveOnServerServiceEndPoint, {
-      method: 'POST',
-      body: JSON.stringify(permalinkStore.getState(viewer, true)),
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      }
-    }).then(response => response.json());
-  },
-  readStateFromServer: function readStateFromServer(mapStateId) {
-    if (!mapStateId) {
-      const throwMessage = 'No mapStateId';
-      throw throwMessage;
-    }
-    if (!saveOnServerServiceEndPoint || saveOnServerServiceEndPoint === '') {
-      const throwMessage = 'No saveOnServerServiceEndPoint defined';
-      throw throwMessage;
-    } else {
-      return fetch(`${saveOnServerServiceEndPoint}/${mapStateId}`).then(response => response.json())
-        .then((data) => {
-          const mapObj = {};
-          Object.keys(data).forEach(key => {
-            if (permalinkParser[key]) mapObj[key] = permalinkParser[key](data[key]);
-            else mapObj[key] = data[key];
-          });
-          return mapObj;
-        });
-    }
-  },
-  addParamsToGetMapState: function addParamsToGetMapState(key, callback) {
-    permalinkStore.AddExternalParams(key, callback);
+
+    // ANVÄND urlparser.stringify – exakt samma som permalinkStore.getSaveLayers
+    serialized.layers = saveLayers
+      .map(layer => urlparser.stringify(layer, { topmost: 'name' }))
+      .join(',');
   }
-}))();
+
+  // Legend: array → "expanded,visibleLayersViewActive"
+  if (state.legend) {
+    serialized.legend = Array.isArray(state.legend)
+      ? state.legend.join(',')
+      : state.legend;
+  }
+
+  // Pin: [x, y] → "x,y"
+  if (state.pin) {
+    serialized.pin = Array.isArray(state.pin)
+      ? state.pin.map(coord => Math.round(coord)).join(',')
+      : state.pin;
+  }
+
+  // Feature, map
+  if (state.feature) serialized.feature = state.feature;
+  if (state.map) serialized.map = state.map;
+
+  // Controls: JSON-sträng
+  if (state.controls) {
+    Object.keys(state.controls).forEach(key => {
+      serialized[`controls.${key}`] = JSON.stringify(state.controls[key]);
+    });
+  }
+
+  return serialized;
+};
+
+// --- UPPDATERAD getHash – använder serializeState ---
+const getHash = (viewer, isExtended = false) => {
+  const state = permalinkStore.getState(viewer, isExtended);
+  const serialized = serializeState(state, viewer);
+  return urlparser.formatUrl(serialized);
+};
+
+// --- parsePermalink – oförändrad ---
+const parsePermalink = (url) => {
+  const hash = url.split('#')[1] || '';
+  if (!hash) return null;
+
+  const params = hash.split('&').reduce((acc, param) => {
+    const [key, value] = param.split('=');
+    if (value !== undefined) {
+      acc[key] = decodeURIComponent(value);
+    }
+    return acc;
+  }, {});
+
+  const parsed = {};
+  Object.keys(params).forEach(key => {
+    if (permalinkParser[key]) {
+      parsed[key] = permalinkParser[key](params[key]);
+    } else if (key.startsWith('controls.')) {
+      const controlKey = key.replace('controls.', '');
+      if (!parsed.controls) parsed.controls = {};
+      try {
+        parsed.controls[controlKey] = JSON.parse(params[key]);
+      } catch (e) {
+        parsed.controls[controlKey] = params[key];
+      }
+    } else {
+      parsed[key] = params[key];
+    }
+  });
+
+  return parsed;
+};
+
+// --- readStateFromServer – oförändrad ---
+const readStateFromServer = (mapStateId) => {
+  return fetch(`${permalinkStore.getUrl()}?mapStateId=${mapStateId}`)
+    .then(response => {
+      if (!response.ok) throw new Error('Failed to fetch map state');
+      return response.json();
+    })
+    .then(data => {
+      const mapObj = {};
+      Object.keys(data).forEach(key => {
+        if (permalinkParser[key]) {
+          mapObj[key] = permalinkParser[key](data[key]);
+        } else {
+          mapObj[key] = data[key];
+        }
+      });
+      return mapObj;
+    });
+};
+
+// --- Exportera allt ---
+export default {
+  getHash,
+  parsePermalink,
+  readStateFromServer,
+  serializeState, // NYTT – används av origo.js
+  getUrl: permalinkStore.getUrl,
+  AddExternalParams: permalinkStore.AddExternalParams
+};
