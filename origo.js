@@ -160,11 +160,13 @@ const Origo = function Origo(config, options = {}) {
         viewerOptions.featureinfoOptions = viewerOptions.featureinfoOptions || {};
         viewerOptions.pageSettings = viewerOptions.pageSettings || {};
 
+        // SÄKRA saveOnServerServiceEndPoint
+        const saveEndpoint = viewerOptions.saveOnServerServiceEndPoint || null;
+        console.log('Origo: saveOnServerServiceEndPoint:', saveEndpoint);
+
         console.log('Origo: Final viewerOptions (secured):', viewerOptions);
 
-        // VIKTIGT: LÅT Viewer hantera target själv
-        // viewerOptions.target = targetSelector; ← TA BORT DENNA RAD
-
+        // LÅT Viewer hantera target själv
         console.log('Origo: Creating Viewer with target:', targetSelector);
         viewer = Viewer(targetSelector, viewerOptions);
 
@@ -176,7 +178,8 @@ const Origo = function Origo(config, options = {}) {
           console.log('Origo: URL params:', Object.fromEntries(urlParams));
           console.log('Origo: mapStateId:', mapStateId);
 
-          if (mapStateId) {
+          // SÄKER HANTERING AV mapStateId
+          if (mapStateId && saveEndpoint && typeof permalink.readStateFromServer === 'function') {
             console.log('Origo: Fetching map state from server...');
             permalink.readStateFromServer(mapStateId)
               .then(rawState => {
@@ -199,6 +202,8 @@ const Origo = function Origo(config, options = {}) {
               .catch(err => {
                 console.warn('Origo: Failed to load mapStateId:', err);
               });
+          } else if (mapStateId) {
+            console.warn('Origo: mapStateId in URL but no saveOnServerServiceEndPoint – ignoring');
           } else {
             console.log('Origo: No mapStateId in URL');
           }
