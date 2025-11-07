@@ -123,7 +123,7 @@ const initViewer = () => {
         if (mapStateId) {
           permalink.readStateFromServer(mapStateId).then(rawState => {
             if (rawState) {
-              // ANVÄND Utils.urlparser
+              // ANVÄND Utils.urlparser – efter att du lagt till export i src/utils.js
               const hashStr = Utils.urlparser.formatUrl(rawState);
               const hashUrl = `#${hashStr}`;
               const parsedState = permalink.parsePermalink(hashUrl);
@@ -131,7 +131,9 @@ const initViewer = () => {
                 viewer.dispatch('changestate', parsedState);
               }
             }
-          }).catch(err => console.error('Restore failed:', err));
+          }).catch(err => {
+            console.error('Restore failed:', err);
+          });
         }
 
         origo.dispatch('load', viewer);
