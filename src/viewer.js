@@ -451,9 +451,6 @@ const Viewer = function Viewer(targetOption, options = {}) {
     }
   };
 
-// SÄKRA this → använd en lokal variabel
-const viewer = this;
-
 return Component({
   onInit() {
     console.log('VIEWER: onInit started');
