@@ -58,6 +58,8 @@ const Viewer = function Viewer(targetOption, options = {}) {
     palette
   } = options;
 
+  const source = options.source || {};
+  
   let {
     projection
   } = options;
