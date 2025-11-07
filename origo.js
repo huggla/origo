@@ -111,24 +111,18 @@ const Origo = function Origo(config, options = {}) {
   const initViewer = () => {
     const defaultConfig = Object.assign({}, origoConfig, options);
 
-    const configPromise = typeof config === 'object' && config !== null
-      ? Promise.resolve({ options: config })
-      : loadResources(config, defaultConfig);
+    // NY LOGIK: Kalla loadResources ENDAST om config är en sträng
+    const configPromise = typeof config === 'string'
+      ? loadResources(config, defaultConfig)
+      : Promise.resolve({ options: config || {} });
 
     configPromise
       .then(data => {
-        // SÄKRA: data kan vara null/undefined
-        const safeData = data || {};
-        const viewerOptions = safeData.options || {};
-
-        // SÄKRA: target måste finnas
+        const viewerOptions = (data && data.options) || {};
         viewerOptions.target = targetSelector;
-
-        // SÄKRA: controls och extensions
         viewerOptions.controls = initControls(viewerOptions.controls);
         viewerOptions.extensions = initExtensions(viewerOptions.extensions);
 
-        // SKAPA VIEWER – nu är viewerOptions garanterat objekt
         viewer = Viewer(targetSelector, viewerOptions);
 
         viewer.on('loaded', () => {
