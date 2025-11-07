@@ -108,63 +108,71 @@ const Origo = function Origo(config, options = {}) {
   api.controls = () => origoControls;
   api.extensions = () => origoExtensions;
 
-  const initViewer = () => {
-    const defaultConfig = Object.assign({}, origoConfig, options);
-console.log('DEBUG: config type:', typeof config, 'value:', config); // ← LÄGG TILL DENNA
-    // NY LOGIK: Kalla loadResources ENDAST om config är en sträng
-    const configPromise = typeof config === 'string'
-      ? loadResources(config, defaultConfig)
-      : Promise.resolve({ options: config || {} });
-console.log('DEBUG: configPromise created'); // ← LÄGG TILL DENNA
-    configPromise
-      .then(data => {
-        console.log('DEBUG: configPromise resolved, data:', data); // ← LÄGG TILL DENNA
-        const viewerOptions = (data && data.options) || {};
-        console.log('DEBUG: viewerOptions:', viewerOptions); // ← LÄGG TILL DENNA
-        viewerOptions.target = targetSelector;
-        viewerOptions.controls = initControls(viewerOptions.controls);
-        viewerOptions.extensions = initExtensions(viewerOptions.extensions);
+const initViewer = () => {
+  const defaultConfig = Object.assign({}, origoConfig, options);
 
-        viewer = Viewer(targetSelector, viewerOptions);
+  let configPromise;
 
-        viewer.on('loaded', () => {
-          const urlParams = new URLSearchParams(window.location.search);
-          const mapStateId = urlParams.get('mapStateId');
+  if (typeof config === 'string') {
+    configPromise = loadResources(config, defaultConfig);
+  } else if (typeof config === 'object' && config !== null) {
+    configPromise = Promise.resolve({ options: config });
+  } else {
+    console.error('Origo: Invalid config');
+    configPromise = Promise.reject(new Error('Invalid config'));
+  }
 
-          if (mapStateId) {
-            permalink.readStateFromServer(mapStateId)
-              .then(rawState => {
-                if (rawState && typeof rawState === 'object' && Object.keys(rawState).length > 0) {
-                  try {
-                    const hashParts = [];
-                    Object.keys(rawState).forEach(key => {
-                      const value = rawState[key];
-                      if (value !== null && value !== undefined && value !== '') {
-                        hashParts.push(`${key}=${encodeURIComponent(String(value))}`);
-                      }
-                    });
-                    const hashStr = hashParts.join('&');
-                    const hashUrl = `#${hashStr}`;
-                    const parsedState = permalink.parsePermalink(hashUrl);
-                    if (parsedState) {
-                      viewer.dispatch('changestate', parsedState);
-                    }
-                  } catch (err) {
-                    console.error('Parse error:', err);
-                  }
-                }
-              })
-              .catch(err => console.error('Fetch error:', err));
-          }
+  configPromise
+    .then(data => {
+      const viewerOptions = data?.options || {};
 
-          origo.dispatch('load', viewer);
-        });
-      })
-      .catch(error => {
-        console.error('Config load error:', error);
-        renderError('config', targetSelector);
+      // SÄKRA: target
+      viewerOptions.target = targetSelector;
+
+      // SÄKRA: controls → array
+      viewerOptions.controls = Array.isArray(viewerOptions.controls)
+        ? viewerOptions.controls
+        : [];
+
+      // SÄKRA: extensions → array
+      viewerOptions.extensions = Array.isArray(viewerOptions.extensions)
+        ? viewerOptions.extensions
+        : [];
+
+      // Nu är viewerOptions 100% säker
+      console.log('DEBUG: Final viewerOptions.controls:', viewerOptions.controls);
+      console.log('DEBUG: Final viewerOptions.extensions:', viewerOptions.extensions);
+
+      viewer = Viewer(targetSelector, viewerOptions);
+
+      viewer.on('loaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const mapStateId = urlParams.get('mapStateId');
+
+        if (mapStateId) {
+          permalink.readStateFromServer(mapStateId)
+            .then(rawState => {
+              if (rawState && typeof rawState === 'object' && Object.keys(rawState).length > 0) {
+                const hash = Object.entries(rawState)
+                  .filter(([, v]) => v != null)
+                  .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+                  .join('&');
+                const hashUrl = `#${hash}`;
+                const state = permalink.parsePermalink(hashUrl);
+                if (state) viewer.dispatch('changestate', state);
+              }
+            })
+            .catch(() => {});
+        }
+
+        origo.dispatch('load', viewer);
       });
-  };
+    })
+    .catch(err => {
+      console.error('Origo config error:', err);
+      renderError('config', targetSelector);
+    });
+};
 
   window.addEventListener('hashchange', (ev) => {
     const newParams = permalink.parsePermalink(ev.newURL);
