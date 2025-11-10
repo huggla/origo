@@ -58,20 +58,12 @@ const loadResources = async function loadResources(mapOptions, config) {
 
   function loadMapOptions() {
     if (typeof (mapOptions) === 'object') {
+      // ---------- INLINE CONFIG ----------
       if (window.location.hash) {
         urlParams = permalink.parsePermalink(window.location.href);
       }
       map.options = Object.assign(config, mapOptions);
       map.options.controls = config.defaultControls || [];
-
-      for (let i = 0; i < map.options.controls.length; i += 1) {
-        if (map.options.controls[i].name === 'sharemap' && map.options.controls[i].options?.storeMethod === 'saveStateToServer') {
-          storeMethod = 'saveStateToServer';
-          permalink.setSaveOnServerServiceEndpoint(map.options.controls[i].options.serviceEndpoint);
-          break;
-        }
-      }
-      const restorePromise = storeMethod === 'saveStateToServer' ? restorePermalink(storeMethod) : Promise.resolve();
 
       if (mapOptions.controls) {
         mapOptions.controls.forEach((control) => {
@@ -89,6 +81,20 @@ const loadResources = async function loadResources(mapOptions, config) {
       map.options.map = undefined;
       map.options.params = urlParams;
 
+      // === FIX #1927 – INLINE + saveStateToServer ===
+      // 1. Hitta sharemap-kontrollen och sätt storeMethod + endpoint i tid
+      for (let i = 0; i < map.options.controls.length; i += 1) {
+        if (map.options.controls[i].name === 'sharemap' &&
+            map.options.controls[i].options?.storeMethod === 'saveStateToServer') {
+          storeMethod = 'saveStateToServer';
+          permalink.setSaveOnServerServiceEndpoint(map.options.controls[i].options.serviceEndpoint);
+        }
+      }
+
+      // 2. Skapa restore-promise (nu vet vi om det är server-sparning)
+      const restorePromise = storeMethod === 'saveStateToServer' ? restorePermalink(storeMethod) : Promise.resolve();
+
+      // 3. Vänta på SVG + restore → sätt params → returnera map
       return Promise.all(loadSvgSprites(config) || [])
         .then(() => restorePromise)
         .then((params) => {
@@ -97,13 +103,15 @@ const loadResources = async function loadResources(mapOptions, config) {
           }
           return map;
         });
+      // === SLUT PÅ FIX ===
+
     } else if (typeof (mapOptions) === 'string') {
+      // ---------- EXTERN JSON (oförändrad, fungerar redan) ----------
       if (isUrl(mapOptions)) {
         urlParams = permalink.parsePermalink(mapOptions);
         url = mapOptions.split('#')[0];
         mapUrl = url;
 
-        // remove file name if included in
         url = trimUrl(url);
 
         json = `${urlParams.map}.json`;
@@ -124,7 +132,6 @@ const loadResources = async function loadResources(mapOptions, config) {
         .then(() => fetch(url, {
           dataType: format
         })
-          // res.json() does not allow comments in json. Read out body as string and parse "manually"
           .then(res => res.text())
           .then((bodyAsJson) => {
             const stripped = stripJSONComments(bodyAsJson);
@@ -191,7 +198,6 @@ const loadResources = async function loadResources(mapOptions, config) {
     return null;
   }
 
-  // Check if authorization is required before map options is loaded
   if (config.authorizationUrl) {
     return fetch(config.authorizationUrl)
       .then(() => loadMapOptions());
