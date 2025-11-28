@@ -7,18 +7,9 @@ const ShareMap = function ShareMap(options = {}) {
   } = options;
 
   const {
-    localization
-  } = options;
-
-  function localize(key) {
-    return localization.getStringByKeys({ targetParentKey: 'sharemap', targetKey: key });
-  }
-
-  const {
     icon = '#ic_screen_share_outline_24px',
-    title = localize('title'),
+    title = 'Dela karta',
     storeMethod,
-	loadMapStateIdMethod,
     serviceEndpoint
   } = options;
   let viewer;
@@ -26,9 +17,9 @@ const ShareMap = function ShareMap(options = {}) {
   let menuItem;
   let modal;
 
-  const createContent = function createContent() { // Kopiera och klistra in länken för att dela kartan.
-    const shareMapInstruction = localize('shareMapInstruction');
-    return `<div class="o-share-link"><input type="text"></div><i>${shareMapInstruction}</i>`;
+  const createContent = function createContent() {
+    return '<div class="o-share-link"><input type="text"></div>'
+    + '<i>Kopiera och klistra in länken för att dela kartan.</i>';
   };
 
   const createLink = function createLink(data) {
@@ -47,9 +38,6 @@ const ShareMap = function ShareMap(options = {}) {
     onInit() {
       if (storeMethod && serviceEndpoint) {
         permalink.setSaveOnServerServiceEndpoint(serviceEndpoint);
-		if (loadMapStateIdMethod) {
-          permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
-        }
       }
     },
     onAdd(evt) {
@@ -60,7 +48,7 @@ const ShareMap = function ShareMap(options = {}) {
         click() {
           mapMenu.close();
           modal = Modal({
-            title: localize('linkToMap'),
+            title: 'Länk till karta',
             content: createContent(),
             target
           });
