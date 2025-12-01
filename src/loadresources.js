@@ -74,6 +74,8 @@ const loadResources = async function loadResources(mapOptions, config) {
       map.options.controls = config.defaultControls || [];
       if (mapOptions.controls) {
         mapOptions.controls.forEach((control) => {
+          const method = getLoadMapStateIdMethod(map.options);
+          permalink.setLoadMapStateIdMethod(method);
           const matchingControlIndex = map.options.controls.findIndex(
             () => (config.defaultControls.name === control.name)
           );
@@ -167,7 +169,8 @@ const loadResources = async function loadResources(mapOptions, config) {
             map.options.params = urlParams;
 
             if (config.mapState) {
-              permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
+              const method = getLoadMapStateIdMethod(map.options);
+              permalink.setLoadMapStateIdMethod(method);
               const mapObj = {};
               const state = config.mapState;
               Object.keys(state).forEach(key => {
@@ -187,7 +190,6 @@ const loadResources = async function loadResources(mapOptions, config) {
                   }
                 }
               }
-              permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
             }
             return restorePermalink(storeMethod).then((params) => {
               if (params) {
