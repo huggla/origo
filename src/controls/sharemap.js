@@ -10,7 +10,6 @@ const ShareMap = function ShareMap(options = {}) {
     icon = '#ic_screen_share_outline_24px',
     title = 'Dela karta',
     storeMethod,
-    loadMapStateIdMethod,
     serviceEndpoint
   } = options;
   let viewer;
@@ -37,11 +36,6 @@ const ShareMap = function ShareMap(options = {}) {
       permalink.addParamsToGetMapState(key, callback);
     },
     onInit() {
-      if (loadMapStateIdMethod) {
-        window.loadMapStateIdMethod = loadMapStateIdMethod;
-        permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
-      }
-
       if (storeMethod && serviceEndpoint) {
         permalink.setSaveOnServerServiceEndpoint(serviceEndpoint);
       }
