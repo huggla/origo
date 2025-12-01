@@ -98,7 +98,7 @@ export default (() => ({
       const throwMessage = 'No saveOnServerServiceEndPoint defined';
       throw throwMessage;
     } else {
-      const method = loadMapStateIdMethod || 'path';
+      const method = window.loadMapStateIdMethod || loadMapStateIdMethod || 'path';
       const url = method === 'query'
         ? `${saveOnServerServiceEndPoint}?mapStateId=${mapStateId}`
         : `${saveOnServerServiceEndPoint}/${mapStateId}`;
