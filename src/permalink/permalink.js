@@ -99,6 +99,7 @@ export default (() => ({
       throw throwMessage;
     } else {
       const method = window.loadMapStateIdMethod || loadMapStateIdMethod || 'path';
+      console.log("Debug: Method used in readStateFromServer:", method); // GROK: här är varför detta behövs – se vilket method som faktiskt används
       const url = method === 'query'
         ? `${saveOnServerServiceEndPoint}?mapStateId=${mapStateId}`
         : `${saveOnServerServiceEndPoint}/${mapStateId}`;
