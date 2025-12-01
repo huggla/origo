@@ -5,6 +5,14 @@ import isUrl from './utils/isurl';
 import trimUrl from './utils/trimurl';
 import stripJSONComments from './utils/stripjsoncomments';
 
+function getLoadMapStateIdMethod(config) {
+  const sharemapControl = config.controls.find(control => control.name === 'sharemap');
+  if (sharemapControl && sharemapControl.options && sharemapControl.options.loadMapStateIdMethod) {
+    return sharemapControl.options.loadMapStateIdMethod;
+  }
+  return 'path';  // fallback om inte satt
+}
+
 function getQueryVariable(variable, storeMethod) {
   const query = window.location.search.substring(1);
   const vars = query.split('&');
@@ -158,6 +166,7 @@ const loadResources = async function loadResources(mapOptions, config) {
             map.options.params = urlParams;
 
             if (config.mapState) {
+              permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
               const mapObj = {};
               const state = config.mapState;
               Object.keys(state).forEach(key => {
@@ -177,6 +186,7 @@ const loadResources = async function loadResources(mapOptions, config) {
                   }
                 }
               }
+              permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
             }
             return restorePermalink(storeMethod).then((params) => {
               if (params) {
