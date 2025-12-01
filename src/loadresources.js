@@ -5,14 +5,6 @@ import isUrl from './utils/isurl';
 import trimUrl from './utils/trimurl';
 import stripJSONComments from './utils/stripjsoncomments';
 
-function getLoadMapStateIdMethod(config) {
-  const sharemapControl = config.controls.find(control => control.name === 'sharemap');
-  if (sharemapControl && sharemapControl.options && sharemapControl.options.loadMapStateIdMethod) {
-    return sharemapControl.options.loadMapStateIdMethod;
-  }
-  return 'path';
-}
-
 function getQueryVariable(variable, storeMethod) {
   const query = window.location.search.substring(1);
   const vars = query.split('&');
@@ -57,6 +49,7 @@ const loadResources = async function loadResources(mapOptions, config) {
   const mapEl = config.target;
   const format = 'json';
   let storeMethod = 'default';
+  let loadMapStateIdMethod = 'path';
   let urlParams;
   let url;
   let mapUrl;
@@ -83,7 +76,6 @@ const loadResources = async function loadResources(mapOptions, config) {
           }
         });
       }
-      permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
       map.options.url = getUrl();
       map.options.map = undefined;
       map.options.params = urlParams;
@@ -91,6 +83,11 @@ const loadResources = async function loadResources(mapOptions, config) {
         if (map.options.controls[i].name === 'sharemap'
             && map.options.controls[i].options?.storeMethod === 'saveStateToServer') {
           storeMethod = 'saveStateToServer';
+          const loadMethod = map.options.controls[i].options?.loadMapStateIdMethod;
+          if (loadMethod) {
+            loadMapStateIdMethod = loadMethod;
+          }
+          permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
           permalink.setSaveOnServerServiceEndpoint(map.options.controls[i].options.serviceEndpoint);
         }
       }
