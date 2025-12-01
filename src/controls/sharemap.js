@@ -37,10 +37,10 @@ const ShareMap = function ShareMap(options = {}) {
       permalink.addParamsToGetMapState(key, callback);
     },
     onInit() {
-      console.log('Sharemap options:', { storeMethod, loadMapStateIdMethod, serviceEndpoint });
       if (storeMethod && serviceEndpoint) {
         permalink.setSaveOnServerServiceEndpoint(serviceEndpoint);
         if (loadMapStateIdMethod) {
+          window.loadMapStateIdMethod = loadMapStateIdMethod;
           permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
         }
       }
