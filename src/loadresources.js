@@ -49,7 +49,6 @@ const loadResources = async function loadResources(mapOptions, config) {
   const mapEl = config.target;
   const format = 'json';
   let storeMethod = 'default';
-  let loadMapStateIdMethod = 'path';
   let urlParams;
   let url;
   let mapUrl;
@@ -83,11 +82,10 @@ const loadResources = async function loadResources(mapOptions, config) {
         if (map.options.controls[i].name === 'sharemap'
             && map.options.controls[i].options?.storeMethod === 'saveStateToServer') {
           storeMethod = 'saveStateToServer';
-          const loadMethod = map.options.controls[i].options?.loadMapStateIdMethod;
-          if (loadMethod) {
-            loadMapStateIdMethod = loadMethod;
+          const loadMapStateIdMethod = map.options.controls[i].options?.loadMapStateIdMethod;
+          if (loadMapStateIdMethod) {
+            permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
           }
-          permalink.setLoadMapStateIdMethod(loadMapStateIdMethod);
           permalink.setSaveOnServerServiceEndpoint(map.options.controls[i].options.serviceEndpoint);
         }
       }
