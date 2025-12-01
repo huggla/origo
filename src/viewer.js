@@ -1,755 +1,765 @@
-import Collection from 'ol/Collection';
-import Feature from 'ol/Feature';
-import geom from 'ol/geom/Geometry';
-import { Component } from './ui';
-import Map from './map';
-import proj from './projection';
-import getCapabilities from './getCapabilities';
-import MapSize from './utils/mapsize';
-import Featureinfo from './featureinfo';
-import Selectionmanager from './selectionmanager';
+import Overlay from 'ol/Overlay';
+import BaseTileLayer from 'ol/layer/BaseTile';
+import ImageLayer from 'ol/layer/Image';
+import OGlide from './oglide';
+import { Component, Modal } from './ui';
+import Popup from './popup';
+import sidebar from './sidebar';
 import maputils from './maputils';
-import utils from './utils';
-import Layer from './layer';
-import Main from './components/main';
-import Footer from './components/footer';
-import CenterMarker from './components/centermarker';
-import flattenGroups from './utils/flattengroups';
-import getcenter from './geometry/getcenter';
-import isEmbedded from './utils/isembedded';
-import generateUUID from './utils/generateuuid';
-import permalink from './permalink/permalink';
-import Stylewindow from './style/stylewindow';
+import featurelayer from './featurelayer';
+import Style from './style';
+import StyleTypes from './style/styletypes';
+import getFeatureInfo from './getfeatureinfo';
+import replacer from './utils/replacer';
+import SelectedItem from './models/SelectedItem';
+import attachmentclient from './utils/attachmentclient';
+import getAttributes, { getContent, featureinfotemplates } from './getattributes';
+import relatedtables from './utils/relatedtables';
 
-const Viewer = function Viewer(targetOption, options = {}) {
-  let map;
-  let tileGrid;
-  let featureinfo;
-  let selectionmanager;
-  let stylewindow;
+const styleTypes = StyleTypes();
 
+const Featureinfo = function Featureinfo(options = {}) {
   const {
-    breakPoints,
-    breakPointsPrefix,
-    clsOptions = '',
-    consoleId = 'o-console',
-    mapCls = 'o-map',
-    controls = [],
-    featureinfoOptions = {},
-    groups: groupOptions = [],
-    pageSettings = {},
-    projectionCode,
-    projectionExtent,
-    startExtent,
-    extent = [],
-    center: centerOption = [0, 0],
-    zoom: zoomOption = 0,
-    resolutions = null,
-    layers: layerOptions = [],
-    layerParams = {},
-    map: mapName,
-    params: urlParams = {},
-    proj4Defs,
-    styles = {},
-    source = {},
-    clusterOptions = {},
-    tileGridOptions = {},
-    url,
-    palette
+    clickEvent = 'click',
+    clusterFeatureinfoLevel = 1,
+    hitTolerance = 0,
+    pinning = true,
+    pinsStyle: pinStyleOptions = styleTypes.getStyle('pin'),
+    savedPin: savedPinOptions,
+    savedSelection,
+    selectionStyles: selectionStylesOptions,
+    autoplay = false
   } = options;
 
-  let {
-    projection
-  } = options;
+  let selectionLayer;
+  let identifyTarget;
+  let overlay;
+  let items;
+  let popup;
+  let viewer;
+  let selectionManager;
+  /** The featureinfo component itself */
+  let component;
 
-  const viewerOptions = Object.assign({}, options);
-  const target = targetOption;
-  const center = urlParams.center || centerOption;
-  const zoom = urlParams.zoom || zoomOption;
-  const groups = flattenGroups(groupOptions);
-  const layerStylePicker = {};
+  const pinStyle = Style.createStyleRule(pinStyleOptions)[0];
+  const selectionStyles = selectionStylesOptions ? Style.createGeometryStyle(selectionStylesOptions) : Style.createEditStyle();
+  let savedPin = savedPinOptions ? maputils.createPointFeature(savedPinOptions, pinStyle) : undefined;
+  const savedFeature = savedPin || savedSelection || undefined;
+  const uiOutput = 'infowindow' in options ? options.infowindow : 'overlay';
 
-  const getCapabilitiesLayers = () => {
-    const capabilitiesPromises = [];
-    (Object.keys(source)).forEach(sourceName => {
-      const sourceOptions = source[sourceName];
-      if (sourceOptions && sourceOptions.capabilitiesURL) {
-        capabilitiesPromises.push(getCapabilities(sourceName, sourceOptions.capabilitiesURL));
-      }
-    });
-    return Promise.all(capabilitiesPromises).then(capabilitiesResults => {
-      const layers = {};
-      capabilitiesResults.forEach(result => {
-        layers[result.name] = result.capabilites;
-      });
-      return layers;
-    }).catch(error => console.log(error));
+  /** Dispatches a clearselectionevent. Should be emitted when window is closed or cleared but not when featureinfo is closed as a result of tool change. */
+  const dispatchClearSelection = function dispatchClearSelection() {
+    component.dispatch('clearselection', null);
   };
 
-  const defaultTileGridOptions = {
-    alignBottomLeft: true,
-    extent,
-    resolutions,
-    tileSize: [256, 256]
+  /** Eventhandler for Selectionmanager's clear event.  */
+  function onSelectionManagerClear() {
+    // Not much do to, just dispatch event as our own.
+    dispatchClearSelection();
+  }
+
+  /**
+    * Clears selection in all possible infowindows (overlay, sidebar and infoWindow) and closes the windows
+    * @param {any} supressEvent Set to true when closing as a result of tool change to supress sending clearselection event
+    */
+  const clear = function clear(supressEvent) {
+    selectionLayer.clear();
+    // Sidebar is static and always present.
+    sidebar.setVisibility(false);
+    // check needed for when sidebar or overlay are selected.
+    if (overlay) {
+      viewer.removeOverlays(overlay);
+    }
+    if (selectionManager) {
+      // clearSelection will fire an cleared event, but we don't want our handler to emit a clear event as we are the one closing,
+      // so we stop listening for a while.
+      selectionManager.un('cleared', onSelectionManagerClear);
+      // This actually closes infowindow as infowindow closes automatically when selection is empty.
+      selectionManager.clearSelection();
+      selectionManager.on('cleared', onSelectionManagerClear);
+    }
+    if (!supressEvent) {
+      dispatchClearSelection();
+    }
   };
-  const tileGridSettings = Object.assign({}, defaultTileGridOptions, tileGridOptions);
-  let mapGridCls = '';
-  if (pageSettings.mapGrid) {
-    if (pageSettings.mapGrid.visible) {
-      mapGridCls = 'o-map-grid';
+
+  /** Callback called from overlay and sidebar when they are closed by their close buttons */
+  function onInfoClosed() {
+    clear(false);
+  }
+
+  function setUIoutput(v) {
+    switch (uiOutput) {
+      case 'infowindow':
+        identifyTarget = 'infowindow';
+        break;
+
+      case 'sidebar':
+        sidebar.init(v, { closeCb: onInfoClosed });
+        identifyTarget = 'sidebar';
+        break;
+
+      default:
+        identifyTarget = 'overlay';
+        break;
     }
   }
-  const cls = `${clsOptions} ${mapGridCls} ${mapCls} o-ui`.trim();
-  const footerData = pageSettings.footer || {};
-  const main = Main();
-  const footer = Footer({
-    data: footerData
-  });
-  const centerMarker = CenterMarker();
-  let mapSize;
 
-  const addControl = function addControl(control) {
-    if (control.onAdd && control.dispatch) {
-      if (control.options.hideWhenEmbedded && isEmbedded(this.getTarget())) {
-        if (typeof control.hide === 'function') {
-          // Exclude these controls in the array since they can't be hidden and the solution is to not add them. If the control hasn't a hide method don't add the control.
-          if (!['sharemap', 'link', 'about', 'print', 'draganddrop'].includes(control.name)) {
-            this.addComponent(control);
-          }
-          control.hide();
-        }
+  // FIXME: overly complex. Don't think layer can be a string anymore
+  const getTitle = function getTitle(item) {
+    let featureinfoTitle;
+    let title;
+    let layer;
+    if (item.layer) {
+      if (typeof item.layer === 'string') {
+        // bcuz in getfeatureinfo -> getFeaturesFromRemote only name of the layer is set on the object! (old version before using SelectedItems class)
+        layer = viewer.getLayer(item.layer);
       } else {
-        this.addComponent(control);
+        layer = viewer.getLayer(item.layer.get('name'));
       }
-    } else {
-      throw new Error('Valid control must have onAdd and dispatch methods');
     }
-  };
-
-  const addControls = function addControls() {
-    controls.forEach((control) => {
-      this.addControl(control);
-    });
-  };
-
-  const getExtent = () => extent;
-
-  const getBreakPoints = function getBreakPoints(size) {
-    return size && size in breakPoints ? breakPoints[size] : breakPoints;
-  };
-
-  const getFeatureinfo = () => featureinfo;
-
-  const getSelectionManager = () => selectionmanager;
-
-  const getStylewindow = () => stylewindow;
-
-  const getCenter = () => getcenter;
-
-  const getMapUtils = () => maputils;
-
-  const getUtils = () => utils;
-
-  const getMapName = () => mapName;
-
-  const getTileGrid = () => tileGrid;
-
-  const getTileGridSettings = () => tileGridSettings;
-
-  const getTileSize = () => tileGridSettings.tileSize;
-
-  const getViewerOptions = () => viewerOptions;
-
-  const getUrl = () => url;
-
-  const getStyle = (styleName) => {
-    if (styleName in styles) {
-      return styles[styleName];
+    // This is very strange: layer above is only a string, could not possibly have method.
+    if (layer) {
+      featureinfoTitle = layer.getProperties().featureinfoTitle;
     }
-    return null;
-  };
-
-  const setStyle = (styleName, style) => {
-    if (styleName in styles) {
-      styles[styleName] = style;
-    }
-  };
-
-  const getStyles = () => styles;
-
-  const addStyle = function addStyle(styleName, styleProps) {
-    if (!(styleName in styles)) {
-      styles[styleName] = styleProps;
-    }
-  };
-
-  const getResolutions = () => resolutions;
-
-  const getMapUrl = () => {
-    let layerNames = '';
-    let mapUrl;
-
-    // delete search arguments if present
-    if (window.location.search) {
-      mapUrl = window.location.href.replace(window.location.search, '?');
-    } else {
-      mapUrl = `${window.location.href}?`;
-    }
-    const mapView = map.getView();
-    const centerCoords = mapView.getCenter().map(coord => parseInt(coord, 10));
-    const zoomLevel = mapView.getZoom();
-    const layers = map.getLayers();
-
-    // add layer if visible
-    layers.forEach((el) => {
-      if (el.getVisible() === true) {
-        layerNames += `${el.get('name')};`;
-      } else if (el.get('legend') === true) {
-        layerNames += `${el.get('name')},1;`;
-      }
-    });
-    return `${mapUrl}${centerCoords}&${zoomLevel}&${layerNames.slice(0, layerNames.lastIndexOf(';'))}`;
-  };
-
-  const getMap = () => map;
-
-  const getLayers = () => map.getLayers().getArray();
-
-  const getLayersByProperty = function getLayersByProperty(key, val, byName) {
-    const layers = map.getLayers().getArray().filter(layer => layer.get(key) && layer.get(key) === val);
-
-    if (byName) {
-      return layers.map(layer => layer.get('name'));
-    }
-    return layers;
-  };
-
-  const getLayer = function getLayer(layerName) {
-    const layerArray = getLayers();
-    if (layerArray.some(layer => layer.get('name') === layerName)) {
-      return layerArray.find(layer => layer.get('name') === layerName);
-    } else if (layerArray.some(layer => layer.get('type') === 'GROUP')) {
-      const groupLayerArray = layerArray.filter(layer => layer.get('type') === 'GROUP');
-      const layersFromGroupLayersArray = groupLayerArray.map(groupLayer => groupLayer.getLayers().getArray());
-      return layersFromGroupLayersArray.flat().find(layer => layer.get('name') === layerName);
-    }
-    return undefined;
-  };
-
-  const getQueryableLayers = function getQueryableLayers(includeImageFeatureInfoMode = false) {
-    const queryableLayers = getLayers().filter(layer => {
-      if (layer.get('queryable') && layer.getVisible()) {
-        return true;
-      } else if (includeImageFeatureInfoMode && layer.get('queryable') && layer.get('imageFeatureInfoMode') === 'always') {
-        return true;
-      }
-      return false;
-    });
-    return queryableLayers;
-  };
-
-  const getGroupLayers = function getGroupLayers() {
-    const groupLayers = getLayers().filter(layer => layer.get('type') === 'GROUP');
-    return groupLayers;
-  };
-
-  const getSearchableLayers = function getSearchableLayers(searchableDefault) {
-    const searchableLayers = [];
-    map.getLayers().forEach((layer) => {
-      let searchable = layer.get('searchable');
-      const visible = layer.getVisible();
-      searchable = searchable === undefined ? searchableDefault : searchable;
-      if (searchable === 'always' || (searchable && visible)) {
-        searchableLayers.push(layer.get('name'));
-      }
-    });
-    return searchableLayers;
-  };
-
-  const getGroup = function getGroup(groupName) {
-    return groups.find(group => group.name === groupName);
-  };
-
-  const getSource = function getSource(name) {
-    if (name in source) {
-      return source[name];
-    }
-    throw new Error(`There is no source with name: ${name}`);
-  };
-
-  const getSource2 = function getSource2(name) {
-    if (name in source) {
-      return source[name];
-    }
-    return undefined;
-  };
-
-  const getGroups = () => groups;
-
-  const getProjectionCode = () => projectionCode;
-
-  const getProjection = () => projection;
-
-  const getMapSource = () => source;
-
-  const getControlByName = function getControlByName(name) {
-    const components = this.getComponents();
-    const control = components.find(component => component.name === name);
-    if (!control) {
-      return null;
-    }
-    return control;
-  };
-
-  const getSize = function getSize() {
-    return mapSize.getSize();
-  };
-
-  const getTarget = () => target;
-
-  const getClusterOptions = () => clusterOptions;
-
-  const getConsoleId = () => consoleId;
-
-  const getInitialZoom = () => zoom;
-
-  const getFooter = () => footer;
-
-  const getMain = () => main;
-
-  const getEmbedded = function getEmbedded() {
-    return isEmbedded(this.getTarget());
-  };
-
-  const mergeSecuredLayer = (layerlist, capabilitiesLayers) => {
-    if (capabilitiesLayers && Object.keys(capabilitiesLayers).length > 0) {
-      return layerlist.map(layer => {
-        let secure;
-        let layername = layer.name;
-        // remove workspace if syntax is workspace:layername
-        layername = layername.split(':').pop();
-        // remove double underscore plus a suffix from layer name
-        if (layername.includes('__')) {
-          layername = layername.substring(0, layername.lastIndexOf('__'));
-        }
-        const layerSourceOptions = layer.source ? getSource2(layer.source) : undefined;
-        if (layerSourceOptions && layerSourceOptions.capabilitiesURL) {
-          if (capabilitiesLayers[layer.source].indexOf(layername) >= 0) {
-            secure = false;
-          } else {
-            secure = true;
-          }
+    if (featureinfoTitle) {
+      const featureProps = item.feature.getProperties();
+      title = replacer.replace(featureinfoTitle, featureProps);
+      if (!title) {
+        if (item instanceof SelectedItem) {
+          title = item.getLayer().get('title') ? item.getLayer().get('title') : item.getLayer().get('name');
         } else {
-          secure = false;
+          title = item.title ? item.title : item.name;
         }
-        return { ...layer, secure };
-      });
-    }
-    return layerlist;
-  };
-
-  const mergeSavedLayerProps = (initialLayerProps, savedLayerProps) => getCapabilitiesLayers()
-    .then(capabilitiesLayers => {
-      let mergedLayerProps;
-      if (savedLayerProps) {
-        mergedLayerProps = initialLayerProps.reduce((acc, initialProps) => {
-          const layerName = initialProps.name.split(':').pop();
-          const savedProps = savedLayerProps[layerName] || {
-            visible: false,
-            legend: false
-          };
-          // Apply changed style
-          if (savedLayerProps[layerName] && savedLayerProps[layerName].altStyleIndex > -1) {
-            const altStyle = initialProps.stylePicker[savedLayerProps[layerName].altStyleIndex];
-            savedProps.clusterStyle = altStyle.clusterStyle;
-            savedProps.style = altStyle.style;
-            if (initialProps.type === 'WMS') {
-              let WMSStylePickerInitialStyle = initialProps.stylePicker.find(style => style.initialStyle);
-              if (WMSStylePickerInitialStyle === undefined) {
-                WMSStylePickerInitialStyle = initialProps.stylePicker[0];
-                WMSStylePickerInitialStyle.initialStyle = true;
-              }
-              savedProps.defaultStyle = WMSStylePickerInitialStyle;
-            } else savedProps.defaultStyle = initialProps.style;
-          }
-          savedProps.name = initialProps.name;
-          const mergedProps = Object.assign({}, initialProps, savedProps);
-          acc.push(mergedProps);
-          return acc;
-        }, []);
-        return mergeSecuredLayer(mergedLayerProps, capabilitiesLayers);
       }
-      return mergeSecuredLayer(initialLayerProps, capabilitiesLayers);
-    });
-
-  const removeOverlays = function removeOverlays(overlays) {
-    if (overlays) {
-      if (overlays.constructor === Array || overlays instanceof Collection) {
-        overlays.forEach((overlay) => {
-          map.removeOverlay(overlay);
-        });
-      } else {
-        map.removeOverlay(overlays);
-      }
+    } else if (item instanceof SelectedItem) {
+      title = item.getLayer().get('title') ? item.getLayer().get('title') : item.getLayer().get('name');
     } else {
-      map.getOverlays().clear();
+      title = item.title ? item.title : item.name;
     }
-  };
-
-  const setMap = function setMap(newMap) {
-    map = newMap;
-  };
-
-  const setProjection = function setProjection(newProjection) {
-    projection = newProjection;
-  };
-
-  const zoomToExtent = function zoomToExtent(geometry, level) {
-    const view = map.getView();
-    const maxZoom = level;
-    const geometryExtent = geometry.getExtent();
-    if (geometryExtent) {
-      view.fit(geometryExtent, {
-        maxZoom
-      });
-      return geometryExtent;
-    }
-    return false;
-  };
-
-  const getLayerStylePicker = function getLayerStylePicker(layer) {
-    return layerStylePicker[layer.get('id')] || [];
-  };
-
-  const addLayerStylePicker = function addLayerStylePicker(layerProps) {
-    if (!layerStylePicker[layerProps.name]) {
-      layerStylePicker[layerProps.name] = layerProps.stylePicker;
-    }
-  };
-
-  const addLayer = function addLayer(thisProps, insertBefore) {
-    let layerProps = thisProps;
-    if (thisProps.layerParam && layerParams[thisProps.layerParam]) {
-      layerProps = Object.assign({}, layerParams[thisProps.layerParam], thisProps);
-    }
-    if (thisProps.styleDef && !thisProps.style) {
-      const styleId = generateUUID();
-      addStyle(styleId, [thisProps.styleDef]);
-      layerProps.style = styleId;
-    }
-    const layer = Layer(layerProps, this);
-    addLayerStylePicker(layerProps);
-    if (insertBefore) {
-      map.getLayers().insertAt(map.getLayers().getArray().indexOf(insertBefore), layer);
-    } else {
-      map.addLayer(layer);
-    }
-    this.dispatch('addlayer', {
-      layerName: layerProps.name
-    });
-    return layer;
-  };
-
-  const removeLayer = function removeLayer(layer) {
-    this.dispatch('removelayer', { layerName: layer.get('name') });
-    map.removeLayer(layer);
-  };
-
-  const addLayers = function addLayers(layersProps) {
-    layersProps.reverse().forEach((layerProps) => {
-      this.addLayer(layerProps);
-    });
-  };
-
-  const addGroup = function addGroup(groupProps) {
-    const defaultProps = {
-      type: 'group'
-    };
-    const groupDef = Object.assign({}, defaultProps, groupProps);
-    const name = groupDef.name;
-    if (!(groups.filter(group => group.name === name).length)) {
-      groups.push(groupDef);
-      this.dispatch('add:group', {
-        group: groupDef
-      });
-    }
-  };
-
-  const addGroups = function addGroups(groupsProps) {
-    groupsProps.forEach((groupProps) => {
-      this.addGroup(groupProps);
-    });
-  };
-
-  // removes group and any depending subgroups and layers
-  const removeGroup = function removeGroup(groupName) {
-    const group = groups.find(item => item.name === groupName);
-    if (group) {
-      const layers = getLayersByProperty('group', groupName);
-      layers.forEach((layer) => {
-        map.removeLayer(layer);
-      });
-      const groupIndex = groups.indexOf(group);
-      groups.splice(groupIndex, 1);
-      this.dispatch('remove:group', {
-        group
-      });
-    }
-    const subgroups = groups.filter((item) => {
-      if (item.parent) {
-        return item.parent === groupName;
-      }
-      return false;
-    });
-    if (subgroups.length) {
-      subgroups.forEach((subgroup) => {
-        const name = subgroup.name;
-        removeGroup(groups[name]);
-      });
-    }
-  };
-
-  const addSource = function addSource(sourceName, sourceProps) {
-    if (!(sourceName in source)) {
-      source[sourceName] = sourceProps;
-    }
-  };
-
-  const addMarker = function addMarker(coordinates, title, content, layerProps, showPopup) {
-    maputils.createMarker(coordinates, title, content, this, layerProps, showPopup);
-  };
-
-  const removeMarkers = function removeMarkers(layerName) {
-    maputils.removeMarkers(this, layerName);
-  };
-
-  const getUrlParams = function getUrlParams() {
-    return urlParams;
+    return title;
   };
 
   /**
-   * Internal helper used when urlParams.feature is set and the popup should be displayed.
-   * @param {any} feature
-   * @param {any} layerName
-   */
-  const displayFeatureInfo = function displayFeatureInfo(feature, layerName) {
-    if (feature) {
-      const fidsbylayer = {};
-      fidsbylayer[layerName] = [feature.getId()];
-      featureinfo.showInfo(fidsbylayer, { ignorePan: true });
-      if (!urlParams.zoom && !urlParams.center) {
-        map.getView().fit(feature.getGeometry(), {
-          maxZoom: getResolutions().length - 2,
-          padding: [15, 15, 40, 15],
-          duration: 1000
-        });
+ * Dispatches an "official" api event.
+ * @param {SelectedItem} item The currently selected item
+ */
+  const dispatchNewSelection = function dispatchNewSelection(item) {
+    // Make sure it actually is a SelectedItem. At least Search can call render() without creating proper selectedItems when
+    // search result is remote.
+    if (item instanceof SelectedItem) {
+      component.dispatch('changeselection', item);
+    }
+  };
+
+  const dispatchToggleFeatureEvent = function dispatchToggleFeatureEvent(currentItem) {
+    const toggleFeatureinfo = new CustomEvent('toggleFeatureinfo', {
+      detail: {
+        type: 'toggleFeatureinfo',
+        currentItem
       }
+    });
+    // FIXME: should be deprecated
+    document.dispatchEvent(toggleFeatureinfo);
+    // Also emit an API-event
+    dispatchNewSelection(currentItem);
+  };
+
+  // TODO: direct access to feature and layer should be converted to getFeature and getLayer methods on currentItem
+  // Must take into consideration that search can send an item that is not a SelecedItem
+  const callback = function callback(evt) {
+    const currentItemIndex = evt.item.index;
+    if (currentItemIndex !== null) {
+      const currentItem = items[currentItemIndex];
+      const clone = currentItem.feature.clone();
+      clone.setId(currentItem.feature.getId());
+      // FIXME: Should be taken from layer name
+      clone.layerName = currentItem.name;
+      selectionLayer.clearAndAdd(
+        clone,
+        selectionStyles[currentItem.feature.getGeometry().getType()]
+      );
+      const title = getTitle(currentItem);
+      selectionLayer.setSourceLayer(currentItem.layer);
+      if (identifyTarget === 'overlay') {
+        popup.setTitle(title);
+      } else if (identifyTarget === 'sidebar') {
+        sidebar.setTitle(title);
+      }
+
+      dispatchToggleFeatureEvent(currentItem);
+    }
+  };
+
+  const initCarousel = function initCarousel(id) {
+    const { length } = Array.from(document.querySelectorAll('.o-identify-content'));
+    if (!document.querySelector('.glide-content') && length > 1) {
+      OGlide({
+        id,
+        callback
+      });
+    }
+  };
+
+  // FIXME: should there be anything done?
+  const callbackImage = function callbackImage(evt) {
+    const currentItemIndex = evt.item.index;
+    if (currentItemIndex !== null) {
+      // should there be anything done?
+    }
+  };
+
+  const initImageCarousel = function initImageCarousel(id, oClass, carouselId, targetElement) {
+    const carousel = document.getElementsByClassName(id.substring(1));
+    const { length } = Array.from(carousel[0].querySelectorAll('div.o-image-content > img'));
+    if (!document.querySelector(`.glide-image${carouselId}`) && length > 1) {
+      OGlide({
+        id,
+        callback: callbackImage,
+        oClass,
+        glideClass: `glide-image${carouselId}`,
+        autoplay,
+        targetElement
+      });
+    }
+  };
+
+  function getSelectionLayer() {
+    return selectionLayer.getFeatureLayer();
+  }
+
+  // FIXME: Can't handle selectionmanager (infowindow)
+  function getSelection() {
+    const selection = {};
+    const firstFeature = selectionLayer.getFeatures()[0];
+    if (firstFeature) {
+      selection.geometryType = firstFeature.getGeometry().getType();
+      selection.coordinates = firstFeature.getGeometry().getCoordinates();
+      selection.id = firstFeature.getId() != null ? firstFeature.getId() : firstFeature.ol_uid;
+      // FIXME: typeof layer can not be string, and if it is it would probably not have a property called type that is set to WFS
+      selection.type = typeof selectionLayer.getSourceLayer() === 'string' ? selectionLayer.getFeatureLayer().type : selectionLayer.getSourceLayer().get('type');
+      if (selection.type === 'WFS') {
+        const idSuffix = selection.id.substring(selection.id.lastIndexOf('.') + 1, selection.id.length);
+        selection.id = `${selectionLayer.getSourceLayer().get('name')}.${idSuffix}`;
+      }
+      if (selection.type !== 'WFS') {
+        // FIXME: typeof layer can not be string
+        const name = typeof selectionLayer.getSourceLayer() === 'string' ? selectionLayer.getSourceLayer() : selectionLayer.getSourceLayer().get('name');
+        const id = firstFeature.getId() || selection.id;
+        selection.id = `${name}.${id}`;
+      }
+    }
+    return selection;
+  }
+
+  const getPin = function getPin() {
+    return savedPin;
+  };
+
+  const getHitTolerance = function getHitTolerance() {
+    return hitTolerance;
+  };
+
+  const addAttributeType = function addAttributeType(attributeType, fn) {
+    getContent[attributeType] = fn;
+    return getContent;
+  };
+
+  const addLinkListener = function addLinkListener(el) {
+    // Check if element already has a listener
+    if (el && !el.hasAttribute('onClickModal')) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targ = e.target;
+        let modalStyle = '';
+        switch (targ.target) {
+          case 'modal-full':
+          {
+            modalStyle = 'max-width:unset;width:98%;height:98%;resize:both;overflow:auto;display:flex;flex-flow:column;';
+            break;
+          }
+          default:
+          {
+            modalStyle = 'resize:both;overflow:auto;display:flex;flex-flow:column;';
+            break;
+          }
+        }
+        Modal({
+          title: targ.title,
+          content: `<iframe src="${targ.href}" class=""style="width:100%;height:99%"></iframe>`,
+          target: viewer.getId(),
+          style: modalStyle,
+          newTabUrl: targ.href
+        });
+      });
+      el.setAttribute('onClickModal', 'true');
+    }
+  };
+
+  /**
+   * Creates temporary attributes on a feature in order for featureinfo to display attributes from related tables and
+   * display attachments as links. Recursively adds attributes to related features in order to support multi level relations.
+   * In order to do so, attributes are also added to the related features.
+   * The hoistedAttributes array can be used to remove all attributes that have been added.
+   * @param {any} parentLayer The layer that holds the feature
+   * @param {any} parentFeature The feature to add attributes to
+   * @param {any} hoistedAttributes An existing array that is populated with the added attributes.
+   */
+  async function hoistRelatedAttributes(parentLayer, parentFeature, hoistedAttributes) {
+    // This function is async and called recursively, DO NOT USE forEach!!! (It won't work)
+
+    let dirty = false;
+    // Add attachments first but only if configured for attribute hoisting
+    const attachmentsConf = parentLayer.get('attachments');
+    if (attachmentsConf && attachmentsConf.groups.some(g => g.linkAttribute || g.fileNameAttribute)) {
+      const ac = attachmentclient(parentLayer);
+      const attachments = await ac.getAttachments(parentFeature);
+      for (let i = 0; i < ac.getGroups().length; i += 1) {
+        const currAttrib = ac.getGroups()[i];
+        let val = '';
+        let texts = '';
+        if (attachments.has(currAttrib.name)) {
+          const group = attachments.get(currAttrib.name);
+          val = group.map(g => g.url).join(';');
+          texts = group.map(g => g.filename).join(';');
+        }
+        if (currAttrib.linkAttribute) {
+          parentFeature.set(currAttrib.linkAttribute, val);
+          hoistedAttributes.push({ feature: parentFeature, attrib: currAttrib.linkAttribute });
+          dirty = true;
+        }
+        if (currAttrib.fileNameAttribute) {
+          hoistedAttributes.push({ feature: parentFeature, attrib: currAttrib.fileNameAttribute });
+          parentFeature.set(currAttrib.fileNameAttribute, texts);
+          dirty = true;
+        }
+      }
+    }
+
+    // Add related layers
+    const relatedLayersConfig = relatedtables.getConfig(parentLayer);
+    if (relatedLayersConfig) {
+      for (let i = 0; i < relatedLayersConfig.length; i += 1) {
+        const layerConfig = relatedLayersConfig[i];
+
+        if (layerConfig.promoteAttribs) {
+          // First recurse our children so we can propagate from n-level to top level
+          const childLayer = viewer.getLayer(layerConfig.layerName);
+          // Function is recursice, we have to await
+          // eslint-disable-next-line no-await-in-loop
+          const childFeatures = await relatedtables.getChildFeatures(parentLayer, parentFeature, childLayer);
+          for (let jx = 0; jx < childFeatures.length; jx += 1) {
+            const childFeature = childFeatures[jx];
+            // So here comes the infamous recursive call ...
+            // Function is recursice, we have to await
+            // eslint-disable-next-line no-await-in-loop
+            await hoistRelatedAttributes(childLayer, childFeature, hoistedAttributes);
+          }
+
+          // Then actually hoist some related attributes
+          for (let j = 0; j < layerConfig.promoteAttribs.length; j += 1) {
+            const currAttribConf = layerConfig.promoteAttribs[j];
+            const resarray = [];
+            childFeatures.forEach(child => {
+              // Collect the attributes from all children
+              // Here one could imagine supporting more attribute types, but html is pretty simple and powerful
+              if (currAttribConf.html) {
+                const val = replacer.replace(currAttribConf.html, child.getProperties());
+                resarray.push(val);
+              }
+            });
+            // Then actually aggregate them. Its a two step operation so in the future we could support more aggregate functions, like min(), max() etc
+            // and also to avoid appending manually and handle that pesky separator on last element.
+            const sep = currAttribConf.separator ? currAttribConf.separator : '';
+            const resaggregate = resarray.join(sep);
+            parentFeature.set(currAttribConf.parentName, resaggregate);
+            hoistedAttributes.push({ feature: parentFeature, attrib: currAttribConf.parentName });
+            dirty = true;
+          }
+        }
+      }
+    }
+    // Only returns if top level is dirty. We don't build content for related objects.
+    return dirty;
+  }
+
+  /**
+   * Adds content from related tables and attachments.
+   * @param {any} item
+   * @param {any} hoistedAttributes
+   */
+  async function addRelatedContent(item) {
+    const hoistedAttributes = [];
+    const updated = await hoistRelatedAttributes(item.getLayer(), item.getFeature(), hoistedAttributes);
+    if (updated) {
+      // Update content as the pseudo attributes have changed
+      // Ideally this should have been made before SelectedItem was created, but that changes so much
+      // in the code flow as the getAttachment is async-ish
+      item.setContent(getAttributes(item.getFeature(), item.getLayer(), viewer.getMap()));
+    }
+    // Remove all temporary added attributes. They mess up saving edits as there are no such fields in db.
+    hoistedAttributes.forEach(hoist => {
+      hoist.feature.unset(hoist.attrib, true);
+    });
+  }
+
+  /**
+   * Internal helper that performs the actual rendering
+   * @param {any} identifyItems
+   * @param {any} target
+   * @param {any} coordinate
+   * @param {bool} ignorePan true if overlay should not be panned into view
+   */
+  const doRender = function doRender(identifyItems, target, coordinate, ignorePan) {
+    const map = viewer.getMap();
+
+    items = identifyItems;
+    clear(false);
+    // FIXME: variable is overwritten in next row
+    let content = items.map((i) => i.content).join('');
+    content = '<div id="o-identify"><div id="o-identify-carousel" class="flex"></div></div>';
+    switch (target) {
+      case 'overlay':
+      {
+        popup = Popup(`#${viewer.getId()}`, { closeCb: onInfoClosed });
+        popup.setContent({
+          content,
+          title: getTitle(items[0])
+        });
+        const contentDiv = document.getElementById('o-identify-carousel');
+        const carouselIds = [];
+        items.forEach((item) => {
+          carouselIds.push(item.feature.ol_uid);
+          if (item.content instanceof Element) {
+            contentDiv.appendChild(item.content);
+          } else {
+            contentDiv.innerHTML = item.content;
+          }
+        });
+        popup.setVisibility(true);
+        initCarousel('#o-identify-carousel');
+        const firstFeature = items[0].feature;
+        const geometry = firstFeature.getGeometry();
+        const origostyle = firstFeature.get('origostyle');
+        const clone = firstFeature.clone();
+        clone.setId(firstFeature.getId());
+        // FIXME: should be layer name, not feature name
+        clone.layerName = firstFeature.name;
+        selectionLayer.clearAndAdd(
+          clone,
+          selectionStyles[geometry.getType()]
+        );
+        selectionLayer.setSourceLayer(items[0].layer);
+        const coord = geometry.getType() === 'Point' ? geometry.getCoordinates() : coordinate;
+        carouselIds.forEach((carouselId) => {
+          let targetElement;
+          const elements = document.getElementsByClassName(`o-image-carousel${carouselId}`);
+          Array.from(elements).forEach(element => {
+            if (!element.closest('.glide__slide--clone')) {
+              targetElement = element;
+            }
+          });
+          const imageCarouselEl = document.getElementsByClassName(`o-image-carousel${carouselId}`);
+          if (imageCarouselEl.length > 0) {
+            initImageCarousel(`#o-image-carousel${carouselId}`, `.o-image-content${carouselId}`, carouselId, targetElement);
+          }
+        });
+        const popupEl = popup.getEl();
+        const popupHeight = document.querySelector('.o-popup').offsetHeight + 10;
+        popupEl.style.height = `${popupHeight}px`;
+        const overlayOptions = { element: popupEl, positioning: 'bottom-center' };
+        if (!ignorePan) {
+          overlayOptions.autoPan = {
+            margin: 55,
+            animation: {
+              duration: 500
+            }
+          };
+        }
+        if (items[0].layer && items[0].layer.get('styleName')) {
+          const styleName = items[0].layer.get('styleName');
+          const itemStyle = viewer.getStyle(styleName);
+          if (itemStyle && itemStyle[0] && itemStyle[0][0] && itemStyle[0][0].overlayOptions) {
+            Object.assign(overlayOptions, itemStyle[0][0].overlayOptions);
+          }
+        }
+        if (origostyle && origostyle.overlayOptions) {
+          Object.assign(overlayOptions, origostyle.overlayOptions);
+        }
+        if (overlayOptions.positioning) {
+          popupEl.classList.add(`popup-${overlayOptions.positioning}`);
+        }
+        overlay = new Overlay(overlayOptions);
+        map.addOverlay(overlay);
+        overlay.setPosition(coord);
+        break;
+      }
+      case 'sidebar':
+      {
+        sidebar.setContent({
+          content,
+          title: getTitle(items[0])
+        });
+        const contentDiv = document.getElementById('o-identify-carousel');
+        items.forEach((item) => {
+          if (item.content instanceof Element) {
+            contentDiv.appendChild(item.content);
+          } else {
+            contentDiv.innerHTML = item.content;
+          }
+        });
+        sidebar.setVisibility(true);
+        const firstFeature = items[0].feature;
+        const geometry = firstFeature.getGeometry();
+        const clone = firstFeature.clone();
+        clone.setId(firstFeature.getId());
+        // FIXME: should be layer name
+        clone.layerName = firstFeature.name;
+        selectionLayer.clearAndAdd(
+          clone,
+          selectionStyles[geometry.getType()]
+        );
+        selectionLayer.setSourceLayer(items[0].layer);
+        initCarousel('#o-identify-carousel');
+        break;
+      }
+      case 'infowindow':
+      {
+        if (items.length === 1) {
+          selectionManager.addOrHighlightItem(items[0]);
+        } else if (items.length > 1) {
+          selectionManager.addItems(items);
+        }
+        break;
+      }
+      default:
+      {
+        break;
+      }
+    }
+
+    const modalLinks = document.getElementsByClassName('o-identify-link-modal');
+    for (let i = 0; i < modalLinks.length; i += 1) {
+      addLinkListener(modalLinks[i]);
+    }
+    // Don't send event for infowindow. Infowindow will send an event that triggers sending the event later.
+    if (target === 'overlay' || target === 'sidebar') {
+      dispatchToggleFeatureEvent(items[0]);
+    }
+  };
+  /**
+   * Renders the feature info window. Consider using showInfo instead if calling using api.
+   * @param {any} identifyItems Array of SelectedItems
+   * @param {any} target Name of infoWindow type
+   * @param {any} coordinate Coordinate where to show pop up.
+   * @param {any} opts Additional options. Supported options are : ignorePan, disable auto pan to popup overlay.
+   */
+  const render = function render(identifyItems, target, coordinate, opts = {}) {
+    // Append attachments (if any) to the SelectedItems
+    const requests = [];
+    identifyItems.forEach(currItem => {
+      // At least search can call render without SelectedItem as Items, it just sends an object with the least possible fields render uses
+      // so we need to exclude those from related tables handling, as we know nothing about them
+      if (currItem instanceof SelectedItem && currItem.getLayer()) {
+        // Fire off a bunch of promises that fetches attachments and related tables
+        requests.push(addRelatedContent(currItem));
+      }
+    });
+    // Wait for all requests. If there are no attachments it just calls .then() without waiting.
+    Promise.all(requests)
+      .catch((err) => {
+        console.log(err);
+        alert('Kunde inte hämta relaterade objekt. En del fält från relaterade objekt kommer att vara tomma.');
+      })
+      .then(() => {
+        doRender(identifyItems, target, coordinate, opts.ignorePan);
+      })
+      .catch(err => console.log(err));
+  };
+
+  /**
+  * Shows the featureinfo popup/sidebar/infowindow for the provided features. Only vector layers are supported.
+  * @param {any} fidsbylayer An object containing layer names as keys with a list of feature ids for each layer
+  * @param {any} opts An object containing options. Supported options are : coordinate, the coordinate where popup will be shown. If omitted first feature is used.
+  *                                                                         ignorePan, do not autopan if type is overlay. Pan should be supressed if view is changed manually to avoid contradicting animations.
+  * @returns nothing
+  */
+  const showInfo = function showInfo(fidsbylayer, opts = {}) {
+    const newItems = [];
+    const grouplayers = viewer.getGroupLayers();
+    const map = viewer.getMap();
+    const keys = Object.keys(fidsbylayer);
+    keys.forEach(layername => {
+      fidsbylayer[layername].forEach(currFeatureId => {
+        const layer = viewer.getLayer(layername);
+        const f = layer.getSource().getFeatureById(currFeatureId);
+        const newItem = getFeatureInfo.createSelectedItem(f, layer, map, grouplayers);
+        newItems.push(newItem);
+      });
+    });
+    render(newItems, identifyTarget, opts.coordinate || maputils.getCenter(newItems[0].getFeature().getGeometry()), opts);
+  };
+
+  /**
+  * Shows the featureinfo popup/sidebar/infowindow for the provided features and fit the view to it.
+  * @param {any} featureObj An object containing layerName and feature. "feature" is either one Feature or an Array of Feature
+  * @param {any} opts An object containing options. Supported options are : coordinate, the coordinate where popup will be shown. If omitted first feature is used.
+  *                                                                         ignorePan, do not autopan if type is overlay. Pan should be supressed if view is changed manually to avoid contradicting animations.
+  * @returns nothing
+  */
+  const showFeatureInfo = function showFeatureInfo(featureObj, opts = { ignorePan: true }) {
+    const newItems = [];
+    const layerName = featureObj.layerName;
+    const layer = viewer.getLayer(layerName);
+    const map = viewer.getMap();
+    const grouplayers = viewer.getGroupLayers();
+    if (Array.isArray(featureObj.feature)) {
+      featureObj.feature.forEach(feature => {
+        const newItem = getFeatureInfo.createSelectedItem(feature, layer, map, grouplayers);
+        newItems.push(newItem);
+      });
+    } else {
+      const newItem = getFeatureInfo.createSelectedItem(featureObj.feature, layer, map, grouplayers);
+      newItems.push(newItem);
+    }
+    if (newItems.length > 0) {
+      render(newItems, identifyTarget, opts.coordinate || maputils.getCenter(newItems[0].getFeature().getGeometry()), opts);
+      viewer.getMap().getView().fit(maputils.getExtent(newItems.map(i => i.getFeature())));
+    }
+  };
+
+  const onClick = function onClick(evt) {
+    savedPin = undefined;
+    // Featurinfo in two steps. Concat serverside and clientside when serverside is finished
+    const pixel = evt.pixel;
+    const map = viewer.getMap();
+    const coordinate = evt.coordinate;
+    const clientResult = getFeatureInfo.getFeaturesAtPixel({
+      coordinate,
+      clusterFeatureinfoLevel,
+      hitTolerance,
+      map,
+      pixel
+    }, viewer);
+    // Abort if clientResult is false
+    if (clientResult !== false) {
+      getFeatureInfo.getFeaturesFromRemote({
+        coordinate,
+        map,
+        pixel
+      }, viewer)
+        .then((data) => {
+          const serverResult = data || [];
+          const result = serverResult.concat(clientResult);
+          if (result.length > 0) {
+            selectionLayer.clear(false);
+            render(result, identifyTarget, evt.coordinate);
+          } else if (selectionLayer.getFeatures().length > 0 || (identifyTarget === 'infowindow' && selectionManager.getNumberOfSelectedItems() > 0)) {
+            clear(false);
+          } else if (pinning) {
+            const resolution = map.getView().getResolution();
+            sidebar.setVisibility(false);
+            setTimeout(() => {
+              if (!maputils.checkZoomChange(resolution, map.getView().getResolution())) {
+                savedPin = maputils.createPointFeature(evt.coordinate, pinStyle);
+                selectionLayer.addFeature(savedPin);
+              }
+            }, 250);
+          }
+        })
+        .catch((error) => console.error(error));
+    }
+  };
+
+  const setActive = function setActive(state) {
+    const map = viewer.getMap();
+    if (state) {
+      map.on(clickEvent, onClick);
+    } else {
+      clear(true);
+      map.un(clickEvent, onClick);
     }
   };
 
   return Component({
-    onInit() {
-      this.render();
+    name: 'featureInfo',
+    clear,
+    addLinkListener,
+    getHitTolerance,
+    getPin,
+    getSelectionLayer,
+    getSelection,
+    addAttributeType,
+    onAdd(e) {
+      // Keep a reference to "ourselves"
+      component = this;
+      viewer = e.target;
+      const map = viewer.getMap();
+      setUIoutput(viewer);
+      selectionLayer = featurelayer(savedFeature, map);
+      selectionManager = viewer.getSelectionManager();
+      // Re dispatch selectionmanager's event as our own
+      if (selectionManager) {
+        selectionManager.on('highlight', evt => dispatchToggleFeatureEvent(evt));
+        selectionManager.on('cleared', onSelectionManagerClear);
+      }
+      map.on(clickEvent, onClick);
+      viewer.on('toggleClickInteraction', (detail) => {
+        // This line of beauty makes feature info active if explicitly set active of another control yields active state.
+        // which effectively makes this the default tool.
+        if ((detail.name === 'featureinfo' && detail.active) || (detail.name !== 'featureinfo' && !detail.active)) {
+          setActive(true);
+        } else {
+          setActive(false);
+        }
+      });
 
-      proj.registerProjections(proj4Defs);
-      setProjection(proj.Projection({
-        projectionCode,
-        projectionExtent
-      }));
+      // Change mouse pointer when hovering over a clickable feature
+      if (viewer.getViewerOptions().featureinfoOptions.changePointerOnHover) {
+        let pointerActive = true;
+        document.addEventListener('enableInteraction', evt => {
+          pointerActive = evt.detail.interaction !== 'editor';
+          // Avoid getting stuck in pointer mode if user manages to enable editing while having pointer over a clickable feature.
+          // If the user manages to disable editing while standing on a clickable feature, it will remain arrow until moved. (Sorry)
+          map.getViewport().style.cursor = '';
+        });
 
-      tileGrid = maputils.tileGrid(tileGridSettings);
-      stylewindow = Stylewindow({ palette, viewer: this });
-
-      setMap(Map(Object.assign(options, { projection, center, zoom, target: this.getId() })));
-
-      mergeSavedLayerProps(layerOptions, urlParams.layers)
-        .then(layerProps => {
-          this.addLayers(layerProps);
-
-          mapSize = MapSize(map, {
-            breakPoints,
-            breakPointsPrefix,
-            mapId: this.getId()
+        // Check if there is a clickable feature when mouse is moved.
+        map.on('pointermove', evt => {
+          if (!pointerActive || evt.dragging) return;
+          let cursor = '';
+          const features = map.getFeaturesAtPixel(evt.pixel, { layerFilter(layer) {
+            return layer.get('queryable');
+          }
           });
-
-          if (urlParams.pin) {
-            featureinfoOptions.savedPin = urlParams.pin;
-          } else if (urlParams.selection) {
-            // This needs further development for proper handling in permalink
-            featureinfoOptions.savedSelection = new Feature({
-              geometry: new geom[urlParams.selection.geometryType](urlParams.selection.coordinates)
-            });
-          }
-
-          featureinfoOptions.viewer = this;
-
-          selectionmanager = Selectionmanager(featureinfoOptions);
-          featureinfo = Featureinfo(featureinfoOptions);
-          this.addComponent(selectionmanager);
-          this.addComponent(featureinfo);
-          this.addComponent(centerMarker);
-
-          this.addControls();
-          
-          if (urlParams.mapStateId) {
-            permalink.readStateFromServer(urlParams.mapStateId).then((state) => {
-              if (state) {
-                // Återapplicera allt som kom från servern
-                if (state.center) map.getView().setCenter(state.center);
-                if (state.zoom !== undefined) map.getView().setZoom(state.zoom);
-                if (state.layers) {
-                  const layerNames = state.layers.split(';').filter(Boolean);
-                  map.getLayers().forEach(layer => {
-                    if (layer.get('name')) {
-                      layer.setVisible(layerNames.includes(layer.get('name')));
-                    }
-                  });
-                }
-                // Hantera feature, pin, selection osv precis som permalinkParser gör
-                if (state.feature && viewer.getFeatureinfo) {
-                  const [layerName, fid] = state.feature.split('.');
-                  const layer = viewer.getLayer(layerName);
-                  if (layer) {
-                    const source = layer.getSource().getSource ? layer.getSource().getSource() : layer.getSource();
-                    source.once('featuresloadend', () => {
-                      const feature = source.getFeatureById(state.feature);
-                      if (feature) viewer.getFeatureinfo().showInfo({ [layerName]: [feature.getId()] }, { ignorePan: true });
-                    });
-                  }
-                }
-              }
-            }).catch(err => console.error('Failed to load map state:', err));
-          }
-
-          if (urlParams.feature) {
-            const featureId = urlParams.feature;
-            const layerName = featureId.split('.')[0];
-            const layer = getLayer(layerName);
-            if (layer && layer.get('type') !== 'GROUP') {
-              const layerType = layer.get('type');
-              const layerSource = layer.getSource().source ? layer.getSource().source : layer.getSource();
-              // Assume that id is just the second part of the argumment and adjust it for special cases later.
-              let id = featureId.split('.')[1];
-
-              if (layerType === 'WFS') {
-                // WFS uses the layername as a part of the featureId. Problem is that it what the server think is the name that matters.
-                // First we assume that the layername is actually correct, then take the special cases
-                let idLayerPart = layerName;
-                const layerId = layer.get('id');
-                if (layerId) {
-                  // if layer explicitly has set the id it takes precedense over name
-                  // layer name already have popped the namespace part, but id is untouched.
-                  idLayerPart = layerId.split(':').pop();
-                } else if (layerName.includes('__')) {
-                  // If using the __-notation to use same layer several times, we must only use the actual layer name
-                  idLayerPart = layerName.split('__')[0];
-                }
-                // Build the correct WFS id
-                id = `${idLayerPart}.${id}`;
-              }
-
-              // Some layer types may already have been loaded, e.g. GeoJson with static configured features. As features are loaded
-              // on creation it is impossible to listen to the featuresloadend event, but on the other hand the features will be ready already
-              // when we get here. It is highly unlikely that a remote source is finished already, but that would work as well.
-              if (layerSource.getFeatures().length > 0) {
-                displayFeatureInfo(layerSource.getFeatureById(id), layerName);
-              } else {
-                // Set up an eventhandler and wait for the source to finsish loading if there are no features yet.
-                // Important that the source actually emits this event.
-                layerSource.once('featuresloadend', () => {
-                  // FIXME: ensure that feature is loaded. If using bbox and feature is outside default extent it will not be found.
-                  // Workaround is to have a default extent covering the entire map with the layer in visible range or use strategy all
-                  // Most likely it will work as sharemap links contains center and zoom so extent will be visible. Most sane people
-                  // will only share maps where the selected feature is in view
-                  displayFeatureInfo(layerSource.getFeatureById(id), layerName);
-                });
+          if (features.length > 0) {
+            cursor = 'pointer';
+          } else {
+            const layerArray = [];
+            const layerGroups = viewer.getGroupLayers();
+            layerGroups.forEach(item => item.getLayersArray().forEach(element => {
+              if (element.get('queryable') && element.get('visible')) { layerArray.push(element); }
+            }));
+            const layers = viewer.getQueryableLayers().filter(layer => layer instanceof BaseTileLayer || layer instanceof ImageLayer);
+            if (layers) { layers.forEach(element => layerArray.push(element)); }
+            for (let i = 0; i < layerArray.length; i += 1) {
+              const layer = layerArray[i];
+              const pixelVal = layer.getData(evt.pixel);
+              if (pixelVal instanceof Uint8ClampedArray && pixelVal[3] > 0) {
+                cursor = 'pointer';
+                break;
               }
             }
           }
-
-          if (!urlParams.zoom && !urlParams.mapStateId && !state?.center && startExtent) {
-            map.getView().fit(startExtent, { size: map.getSize() });
-          }
-
-          this.dispatch('loaded');
+          map.getViewport().style.cursor = cursor;
         });
+      }
     },
-    render() {
-      const htmlString = `<div id="${this.getId()}" class="${cls}">
-                            <div class="transparent flex column height-full width-full absolute top-left no-margin z-index-low">
-                              ${main.render()}
-                              ${footer.render()}
-                            </div>
-                          </div>
-
-                          <div id="loading" class="hide">
-                            <div class="loading-spinner"></div>
-                          </div>`;
-      const el = document.querySelector(target);
-      el.innerHTML = htmlString;
-      this.dispatch('render');
-    },
-    addControl,
-    addControls,
-    addGroup,
-    addGroups,
-    addLayer,
-    addLayers,
-    addSource,
-    addStyle,
-    addMarker,
-    getBreakPoints,
-    getCenter,
-    getClusterOptions,
-    getConsoleId,
-    getControlByName,
-    getExtent,
-    getFeatureinfo,
-    getFooter,
-    getInitialZoom,
-    getTileGridSettings,
-    getGroup,
-    getGroups,
-    getMain,
-    getMapSource,
-    getMapUtils,
-    getUtils,
-    getQueryableLayers,
-    getGroupLayers,
-    getResolutions,
-    getSearchableLayers,
-    getSize,
-    getLayer,
-    getLayerStylePicker,
-    getLayers,
-    getLayersByProperty,
-    getMap,
-    getMapName,
-    getMapUrl,
-    getProjection,
-    getProjectionCode,
-    getSource,
-    getStyle,
-    getStyles,
-    getTarget,
-    getTileGrid,
-    getTileSize,
-    getUrl,
-    getUrlParams,
-    getViewerOptions,
-    removeGroup,
-    removeLayer,
-    removeOverlays,
-    removeMarkers,
-    setStyle,
-    zoomToExtent,
-    getSelectionManager,
-    getStylewindow,
-    getEmbedded,
-    permalink,
-    generateUUID,
-    centerMarker
+    render,
+    showInfo,
+    showFeatureInfo,
+    featureinfotemplates
   });
 };
 
-export default Viewer;
+export default Featureinfo;
