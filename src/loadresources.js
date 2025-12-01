@@ -5,6 +5,14 @@ import isUrl from './utils/isurl';
 import trimUrl from './utils/trimurl';
 import stripJSONComments from './utils/stripjsoncomments';
 
+function getLoadMapStateIdMethod(config) {
+  const sharemapControl = config.controls.find(control => control.name === 'sharemap');
+  if (sharemapControl && sharemapControl.options && sharemapControl.options.loadMapStateIdMethod) {
+    return sharemapControl.options.loadMapStateIdMethod;
+  }
+  return 'path';
+}
+
 function getQueryVariable(variable, storeMethod) {
   const query = window.location.search.substring(1);
   const vars = query.split('&');
