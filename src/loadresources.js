@@ -86,6 +86,7 @@ const loadResources = async function loadResources(mapOptions, config) {
           }
         });
       }
+      permalink.setLoadMapStateIdMethod(getLoadMapStateIdMethod(map.options));
       map.options.url = getUrl();
       map.options.map = undefined;
       map.options.params = urlParams;
