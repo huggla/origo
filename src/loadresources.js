@@ -7,6 +7,7 @@ import stripJSONComments from './utils/stripjsoncomments';
 
 function getLoadMapStateIdMethod(config) {
   const sharemapControl = config.controls.find(control => control.name === 'sharemap');
+  console.log("Debug: Sharemap control found?", sharemapControl); // GROK: här är varför detta behövs – kontrollera om sharemap hittas
   if (sharemapControl && sharemapControl.options && sharemapControl.options.loadMapStateIdMethod) {
     return sharemapControl.options.loadMapStateIdMethod;
   }
