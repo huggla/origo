@@ -590,6 +590,36 @@ const Viewer = function Viewer(targetOption, options = {}) {
           this.addComponent(centerMarker);
 
           this.addControls();
+          
+          if (urlParams.mapStateId) {
+            permalink.readStateFromServer(urlParams.mapStateId).then((state) => {
+              if (state) {
+                // Återapplicera allt som kom från servern
+                if (state.center) map.getView().setCenter(state.center);
+                if (state.zoom !== undefined) map.getView().setZoom(state.zoom);
+                if (state.layers) {
+                  const layerNames = state.layers.split(';').filter(Boolean);
+                  map.getLayers().forEach(layer => {
+                    if (layer.get('name')) {
+                      layer.setVisible(layerNames.includes(layer.get('name')));
+                    }
+                  });
+                }
+                // Hantera feature, pin, selection osv precis som permalinkParser gör
+                if (state.feature && viewer.getFeatureinfo) {
+                  const [layerName, fid] = state.feature.split('.');
+                  const layer = viewer.getLayer(layerName);
+                  if (layer) {
+                    const source = layer.getSource().getSource ? layer.getSource().getSource() : layer.getSource();
+                    source.once('featuresloadend', () => {
+                      const feature = source.getFeatureById(state.feature);
+                      if (feature) viewer.getFeatureinfo().showInfo({ [layerName]: [feature.getId()] }, { ignorePan: true });
+                    });
+                  }
+                }
+              }
+            }).catch(err => console.error('Failed to load map state:', err));
+          }
 
           if (urlParams.feature) {
             const featureId = urlParams.feature;
@@ -637,7 +667,7 @@ const Viewer = function Viewer(targetOption, options = {}) {
             }
           }
 
-          if (!urlParams.zoom && !urlParams.mapStateId && startExtent) {
+          if (!urlParams.zoom && !urlParams.mapStateId && !state?.center && startExtent) {
             map.getView().fit(startExtent, { size: map.getSize() });
           }
 
