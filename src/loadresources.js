@@ -6,6 +6,7 @@ import trimUrl from './utils/trimurl';
 import stripJSONComments from './utils/stripjsoncomments';
 
 function getLoadMapStateIdMethod(config) {
+  console.log("Debug: Config.controls full array:", config.controls); // GROK: här är varför detta behövs – visa hela controls för att se sharemap
   const sharemapControl = config.controls.find(control => control.name === 'sharemap');
   console.log("Debug: Sharemap control found?", sharemapControl); // GROK: här är varför detta behövs – kontrollera om sharemap hittas
   if (sharemapControl && sharemapControl.options && sharemapControl.options.loadMapStateIdMethod) {
