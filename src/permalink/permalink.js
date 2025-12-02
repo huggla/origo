@@ -103,13 +103,11 @@ export default (() => ({
         : `${saveOnServerServiceEndPoint}/${mapStateId}`;
       return fetch(url).then(response => response.json())
         .then((data) => {
-          console.log('Raw JSON från mapstate.php:', data);  // ← lägg till här
           const mapObj = {};
           Object.keys(data).forEach(key => {
             if (permalinkParser[key]) mapObj[key] = permalinkParser[key](data[key]);
             else mapObj[key] = data[key];
           });
-          console.log('Parsat state som Origo förstår:', mapObj);
           return mapObj;
         });
     }
