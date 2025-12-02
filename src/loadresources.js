@@ -185,6 +185,7 @@ const loadResources = async function loadResources(mapOptions, config) {
             return restorePermalink(storeMethod).then((params) => {
               if (params) {
                 map.options.params = params;
+                console.log('MapState från servern:', params);
               }
               return map;
             });
