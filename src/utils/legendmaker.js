@@ -170,34 +170,40 @@ async function setIcon(src, cmp, styleRules, layer, viewer, clickable) {
   const style = viewer.getStyle(styleName);
   const activeThemes = layer.get('activeThemes');
   const hasThemeLegend = layer.get('hasThemeLegend');
-  if (!style[0].thematic) {
-    style[0].thematic = [];
-    const paramsString = src.icon.json;
-    const searchParams = new URLSearchParams(paramsString);
-    const response = await fetch(src.icon.json);
-    const jsonData = await response.json();
-    jsonData.nodes[0].symbols.forEach(row => {
-      searchParams.set('FORMAT', 'image/png');
-      searchParams.set('RULE', row.title);
-      searchParams.set('WIDTH', '30');
-      searchParams.set('HEIGHT', '30');  
-      const imgUrl = decodeURIComponent(searchParams.toString());
-      if (typeof row.rule !== 'undefined') {
-        style[0].thematic.push({
-          image: { src: imgUrl },
-          filter: row.rule,
-          name: row.name,
-          label: row.title || row.name,
-          visible: row.visible !== false
+  if (!style[0].thematic || style[0].thematic.length === 0) {
+    if (!thematicPromises.has(styleName)) {
+      const promise = (async () => {
+        style[0].thematic = [];
+        const paramsString = src.icon.json;
+        const searchParams = new URLSearchParams(paramsString);
+        const response = await fetch(src.icon.json);
+        const jsonData = await response.json();
+        jsonData.nodes[0].symbols.forEach(row => {
+          searchParams.set('FORMAT', 'image/png');
+          searchParams.set('RULE', row.title);
+          searchParams.set('WIDTH', '30');
+          searchParams.set('HEIGHT', '30');  
+          const imgUrl = decodeURIComponent(searchParams.toString());
+          if (typeof row.rule !== 'undefined') {
+            style[0].thematic.push({
+              image: { src: imgUrl },
+              filter: row.rule,
+              name: row.name,
+              label: row.title || row.name,
+              visible: row.visible !== false
+            });
+            if (activeThemes && hasThemeLegend) {
+              const lastItem = style[0].thematic[style[0].thematic.length - 1];
+              lastItem.visible = activeThemes.includes(row.name || row.title);
+            }
+          }
         });
-        if (activeThemes && hasThemeLegend) {
-          const lastItem = style[0].thematic[style[0].thematic.length - 1];
-          lastItem.visible = activeThemes.includes(row.name || row.title);
-        }
-      }
-    });
-    viewer.setStyle(styleName, style);
-    updateLayer(layer, viewer);
+        viewer.setStyle(styleName, style);
+        updateLayer(layer, viewer);
+      })();
+      thematicPromises.set(styleName, promise);
+    }
+    await thematicPromises.get(styleName);
   }
   const cmps = [];
   for (let index = 0; index < style[0].thematic.length; index += 1) {
