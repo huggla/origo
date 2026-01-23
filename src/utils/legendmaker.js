@@ -165,6 +165,7 @@ function updateLayer(layer, viewer) {
   }
 }
 
+const thematicPromises = new Map(); // against a possible race condition in a shared map
 async function setIcon(src, cmp, styleRules, layer, viewer, clickable) {
   const styleName = layer.get('styleName');
   const style = viewer.getStyle(styleName);
