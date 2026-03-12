@@ -246,18 +246,24 @@ const Search = function Search(options = {}) {
     const ids = Object.keys(data);
     ids.forEach((id) => {
       const item = data[id];
-      let typeTitle;
-      if (layerNameAttribute && idAttribute) {
-        typeTitle = viewer.getLayer(item[layerNameAttribute]).get('title');
-      } else if (geometryAttribute && layerName) {
-        typeTitle = viewer.getLayer(item[layerName]).get('title');
-      } else if (titleAttribute && contentAttribute && geometryAttribute) {
-        typeTitle = item[titleAttribute];
-      } else if (geometryAttribute && title) {
-        typeTitle = title;
-      } else if (easting && northing && title) {
-        typeTitle = title;
-      }
+        let typeTitle;
+        // GROK: Prioritera titleAttribute om den är satt i konfigurationen,
+        // annars fallback till TYPE (exakt som du begärde)
+        if (titleAttribute && item[titleAttribute]) {
+            typeTitle = item[titleAttribute];
+        } else if (layerNameAttribute && idAttribute) {
+            typeTitle = viewer.getLayer(item[layerNameAttribute]).get('title');
+        } else if (geometryAttribute && layerName) {
+            typeTitle = viewer.getLayer(item[layerName]).get('title');
+        } else if (titleAttribute && contentAttribute && geometryAttribute) {
+            typeTitle = item[titleAttribute];
+        } else if (geometryAttribute && title) {
+            typeTitle = title;
+        } else if (easting && northing && title) {
+            typeTitle = title;
+        } else {
+            typeTitle = item.TYPE || 'Övrigt';
+        }
       if (typeTitle && typeTitle in group === false) {
         group[typeTitle] = [];
         item.header = typeTitle;
