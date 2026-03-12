@@ -241,22 +241,20 @@ const Search = function Search(options = {}) {
     return items.map(item => searchDb[item]);
   }
 
-  function groupDb(data) {
+function groupDb(data) {
     const group = {};
     const ids = Object.keys(data);
     ids.forEach((id) => {
-      const item = data[id];
+        const item = data[id];
         let typeTitle;
-        // GROK: Prioritera titleAttribute om den är satt i konfigurationen,
-        // annars fallback till TYPE (exakt som du begärde)
+        // GROK: titleAttribute styr grupprubrik när den är satt i konfigurationen
+        // (oberoende av contentAttribute/geometryAttribute)
         if (titleAttribute && item[titleAttribute]) {
             typeTitle = item[titleAttribute];
         } else if (layerNameAttribute && idAttribute) {
             typeTitle = viewer.getLayer(item[layerNameAttribute]).get('title');
         } else if (geometryAttribute && layerName) {
             typeTitle = viewer.getLayer(item[layerName]).get('title');
-        } else if (titleAttribute && contentAttribute && geometryAttribute) {
-            typeTitle = item[titleAttribute];
         } else if (geometryAttribute && title) {
             typeTitle = title;
         } else if (easting && northing && title) {
@@ -264,18 +262,18 @@ const Search = function Search(options = {}) {
         } else {
             typeTitle = item.TYPE || 'Övrigt';
         }
-      if (typeTitle && typeTitle in group === false) {
-        group[typeTitle] = [];
-        item.header = typeTitle;
-      }
-      if (typeTitle) {
-        group[typeTitle].push(item);
-      } else if (id === 0) {
-        console.error('Search options are missing');
-      }
+        if (typeTitle && typeTitle in group === false) {
+            group[typeTitle] = [];
+            item.header = typeTitle;
+        }
+        if (typeTitle) {
+            group[typeTitle].push(item);
+        } else if (id === 0) {
+            console.error('Search options are missing');
+        }
     });
     return group;
-  }
+}
 
   function groupToList(group) {
     const types = Object.keys(group);
