@@ -140,7 +140,10 @@ class WfsSource extends VectorSource {
       `&srsname=${this._options.dataProjection}`].join('');
     url += queryFilter;
     if (ids || ids === 0) {
-      url += `&FeatureId=${ids}`;
+      const featureIds = (Array.isArray(ids) ? ids : ids.toString().split(','))
+        .map(id => `${this._options.featureType}.${id.toString().trim()}`)
+        .join(',');
+      url += `&FeatureId=${featureIds}`;
     }
     url = encodeURI(url);
 
