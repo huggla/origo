@@ -280,8 +280,9 @@ function createUrvalElement(selectionGroup, selectionGroupTitle) {
 function createExpandableContent(listElementContentContainer, content, elementId) {
   const items = content.querySelectorAll('ul > li');
   const foldedItems = [];
+  const visibleItemsBeforeCollapse = 20;
 
-  if (items.length > 2) {
+  if (items.length > visibleItemsBeforeCollapse) {
     const rightArrowSvg = createSvgElement('fa-chevron-right', 'expandlistelement-svg');
 
     rightArrowSvg.addEventListener('click', (e) => {
@@ -306,7 +307,7 @@ function createExpandableContent(listElementContentContainer, content, elementId
     listElementContentContainer.appendChild(rightArrowSvg);
     listElementContentContainer.setAttribute('expanded', 'false');
 
-    for (let i = 2; i < items.length; i += 1) {
+    for (let i = visibleItemsBeforeCollapse; i < items.length; i += 1) {
       const item = items[i];
       item.classList.add('folded');
       foldedItems.push(item);
