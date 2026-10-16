@@ -123,8 +123,8 @@ const PrintComponent = function PrintComponent(options = {}) {
     for (let ix = 0; ix < src.length; ix += 1) {
       // Do the calculation the same way as when setting the scale. Otherwise there will be rounding errors and the scale bar will have another scale than selected
       // (and probably not an even nice looking number)
-      const scale = maputils.resolutionToScale(src[ix], viewer.getProjection()) / 1000;
-      const scaleResolution = scale / getPointResolution(viewer.getProjection(), resolution / 25.4, map.getView().getCenter());
+      const scale = Math.round(src[ix] * (100 / 2.54) * (25.4 / 0.28)) / 1000;
+      const scaleResolution = (scale * 25.4) / getPointResolution(viewer.getProjection(), resolution / 25.4, map.getView().getCenter());
       retval.push(scaleResolution);
     }
     return retval;
