@@ -362,8 +362,20 @@ const PrintComponent = function PrintComponent(options = {}) {
         resolution / 25.4,
         view.getCenter()
       );
-      let textContent = scale;
-      textContent = maputils.formatScale(scale * 1000);
+      const scaleDenominator = scale * 1000;
+      let closestScale;
+      let closestScaleDenominator = Infinity;
+      scales.forEach((scaleOption) => {
+        const denominator = parseInt(scaleOption.replace(/\s+/g, '').split(':').pop(), 10);
+        if (Number.isFinite(denominator) && Math.abs(denominator - scaleDenominator) < Math.abs(closestScaleDenominator - scaleDenominator)) {
+          closestScale = scaleOption;
+          closestScaleDenominator = denominator;
+        }
+      });
+      const scaleDifference = Math.abs(closestScaleDenominator - scaleDenominator);
+      const textContent = closestScale && scaleDifference <= scaleDenominator * 0.005
+        ? closestScale
+        : maputils.formatScale(scaleDenominator);
       printSettings.getScaleControl().setButtonText(textContent);
       setScale(scale);
     }
