@@ -200,14 +200,15 @@ const LayerRow = function LayerRow(options) {
           <img src="${getLegendGraphicUrl}" alt="${title}" />
         </div>`;
     }
-    if (json.Legend[0].rules.length <= 1) {
+    const symbols = json.nodes[0].symbols;
+    if (symbols.length <= 1) {
       const icon = `<img class="cover" src="${getLegendGraphicUrl}"  alt="${title}"/>`;
       return getTitleWithIcon(title, icon);
     }
 
-    const rules = json.Legend[0].rules.map((rule, index) => {
-      const ruleImageUrl = `${getLegendGraphicUrl}&rule=${rule.name}`;
-      const rowTitle = rule.title ? rule.title : index + 1;
+    const rules = symbols.map((symbol, index) => {
+      const ruleImageUrl = `${getLegendGraphicUrl}&rule=${symbol.title}&WIDTH=30&HEIGHT=30`;
+      const rowTitle = symbol.title ? symbol.title : index + 1;
       return getListItem(rowTitle, ruleImageUrl, true);
     });
     return getTitleWithChildren(title, rules);
