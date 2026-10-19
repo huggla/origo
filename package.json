@@ -30,6 +30,7 @@
     "build-js-analyze": "webpack --config ./tasks/webpack.analyze.js",
     "copy": "webpack --config ./tasks/webpack.copy.js",
     "copy-dev": "webpack --config ./tasks/webpack.copy-dev.js",
+    "postinstall": "node scripts/patch-openlayers-scale.js",
     "copy-plugins": "copyfiles plugins/* build"
   },
   "dependencies": {
