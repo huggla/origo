@@ -11,7 +11,8 @@ export default function PrintMap(options = {}) {
     northArrow,
     printLegend,
     map,
-    viewer
+    viewer,
+    resolution = 150
   } = options;
   let {
     showNorthArrow,
@@ -20,6 +21,7 @@ export default function PrintMap(options = {}) {
 
   let mapControls;
   let scaleLine;
+  let printDpi = resolution;
 
   const topLeftMapControls = El({ cls: 'flex column align-start absolute top-left transparent z-index-ontop-middle' });
   const topRightMapControls = El({ cls: 'flex column align-start absolute top-right transparent z-index-ontop-middle' });
@@ -41,8 +43,9 @@ export default function PrintMap(options = {}) {
     onRender() {
       this.dispatch('render');
     },
-    setDpi(resolution) {
-      scaleLine.setDpi(resolution.resolution);
+    setDpi(dpiChange) {
+      printDpi = dpiChange.resolution;
+      scaleLine.setDpi(printDpi);
     },
     toggleNorthArrow(display) {
       showNorthArrow = !showNorthArrow;
@@ -73,6 +76,9 @@ export default function PrintMap(options = {}) {
         text: true,
         steps: 2
       });
+      scaleLine.getScaleForResolution = () => (
+        map.getView().getResolution() * (1000 / 25.4) * printDpi
+      );
       const attribution = new olAttribution({
         className: 'print-attribution',
         collapsible: false,

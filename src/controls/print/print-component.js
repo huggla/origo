@@ -250,7 +250,9 @@ const PrintComponent = function PrintComponent(options = {}) {
     }
   });
 
-  const printMapComponent = PrintMap({ logo, northArrow, map, viewer, showNorthArrow, printLegend, showPrintLegend });
+  const printMapComponent = PrintMap({
+    logo, northArrow, map, viewer, showNorthArrow, printLegend, showPrintLegend, resolution
+  });
 
   const centerComponent = El({ cls: 'flex column align-start absolute center-center transparent z-index-ontop-middle' });
   const printMapSpinner = El({ cls: 'print-map-loading-spinner' });
